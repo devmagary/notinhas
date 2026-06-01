@@ -1,0 +1,28 @@
+# Playwright / Perfis do navegador
+perfil_navegador/
+
+# Arquivos de log e configuração local
+*.log
+erro_log.txt
+config.json
+
+# Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Arquivos temporários e de edição
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Exemplos de dados locais do usuário
+*.csv
+*.txt
+*.xlsx
