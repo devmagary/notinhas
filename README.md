@@ -12,10 +12,15 @@ Uma automação feita em Python para facilitar a vida dos professores da rede es
 
 ## 🚀 Como Usar
 
-### Pré-requisitos
+### 💻 Opção 1: Usando o Executável (.exe) - Para Computadores sem Python
+A maneira mais fácil de usar é baixando o aplicativo compilado:
+1. Faça o download do arquivo `sigeduc_gui.exe`.
+2. Dê um duplo clique para abrir.
+3. *Na primeira vez que você abrir em um computador novo*, o aplicativo fará um download rápido dos navegadores necessários (Playwright) em segundo plano, usando a internet. Depois disso, a tela inicial abrirá automaticamente.
+
+### 🐍 Opção 2: Rodando pelo Código-Fonte (Para desenvolvedores)
 Certifique-se de ter o [Python](https://www.python.org/downloads/) instalado na sua máquina (versão 3.8 ou superior).
 
-### Instalação
 O aplicativo instala as bibliotecas necessárias automaticamente no primeiro uso. Basta executar:
 
 ```bash
