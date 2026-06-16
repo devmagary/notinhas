@@ -4,6 +4,12 @@ import time
 import threading
 from tkinter import filedialog, messagebox
 
+# Correção para o PyInstaller: obriga o Playwright a usar a pasta padrão do Windows 
+# em vez da pasta temporária do executável onde os navegadores não estão embutidos.
+if getattr(sys, 'frozen', False):
+    local_app_data = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.join(local_app_data, "ms-playwright")
+
 # Auto-instalação do customtkinter e tkcalendar
 try:
     import customtkinter as ctk
@@ -16,7 +22,7 @@ except ImportError:
 
 # Importa todas as funções lógicas do script original que criamos antes!
 # Assim não precisamos reescrever a lógica do Playwright.
-import lancar_frequencia as sf
+import sigeduc_core as sf
 
 # Configuração visual do tema
 ctk.set_appearance_mode("System")  # Segue o tema do Windows (Claro/Escuro)
@@ -392,6 +398,7 @@ class SigeducGUI(ctk.CTk):
     def rodar_automacao(self):
         """Função principal que roda em background controlando o Sigeduc."""
         try:
+            self._garantir_navegador()
             self._executar_logica_sigeduc()
         except Exception as e:
             import traceback
@@ -403,6 +410,22 @@ class SigeducGUI(ctk.CTk):
             # Reativa o botão quando terminar (com sucesso ou erro)
             self.btn_iniciar.configure(state="normal", text="▶ INICIAR AUTOMAÇÃO")
             
+    def _garantir_navegador(self):
+        print("\nVerificando dependências do navegador (pode demorar na primeira vez)...")
+        try:
+            import subprocess
+            from playwright._impl._driver import compute_driver_executable, get_driver_env
+            cmd = list(compute_driver_executable()) + ["install", "chromium"]
+            subprocess.run(
+                cmd, 
+                env=get_driver_env(), 
+                check=True, 
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            print("Dependências verificadas.")
+        except Exception as e:
+            print(f"⚠️ Aviso ao verificar navegadores: {e}")
+
     def mostrar_instrucoes_sync(self, titulo, passos, tipo) -> None:
         """Exibe uma janela de instruções de forma síncrona e segura para threads."""
         event = threading.Event()
