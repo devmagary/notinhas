@@ -21,9 +21,11 @@ Automação em Python desenvolvida para simplificar e agilizar a rotina de profe
 
 - `sigeduc_gui.py`: Interface gráfica para o usuário construída em CustomTkinter.
 - `sigeduc_core.py`: Motor de automação com Playwright, tratamento de DOM, normalização de nomes e lógica de navegação.
+- `sigeduc_scraper.py`: Módulo de web scraping para extração de dados acadêmicos (turmas, notas, atividades e frequência) e exportação em Excel estruturado.
 - `lancar_frequencia.py`: Interface interativa de linha de comando (CLI).
 - `requirements.txt`: Relação de dependências do projeto.
 - `exemplo_alunos.txt`: Arquivo modelo com lista de estudantes para testes de frequência.
+
 
 ---
 
@@ -71,6 +73,24 @@ Passo a passo na interface:
 Para operar diretamente pelo terminal sem interface gráfica:
 ```bash
 python lancar_frequencia.py
+```
+
+### Extração de Dados Acadêmicos para Excel (Scraping)
+
+Para extrair as notas, atividades, faltas vinculadas e histórico de frequência de todas as turmas e gerar uma planilha Excel `.xlsx` multi-aba formatada:
+
+```bash
+# Execução interativa (solicita usuário e senha no terminal de forma segura)
+python sigeduc_scraper.py
+
+# Apenas notas e resultados
+python sigeduc_scraper.py --modo=notas --saida=notas_gerais.xlsx
+
+# Apenas histórico de frequência
+python sigeduc_scraper.py --modo=frequencia --saida=frequencia_geral.xlsx
+
+# Execução em background (silenciosa)
+python sigeduc_scraper.py --headless --modo=todos --saida=relatorio_completo.xlsx
 ```
 
 ---
