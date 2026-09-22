@@ -39,12 +39,18 @@ def main():
     sc.logger.info("")
 
     with sc.sync_playwright() as p:
-        browser = p.chromium.launch_persistent_context(
-            user_data_dir=str(sc.PERFIL_NAVEGADOR),
-            headless=False,
-            slow_mo=sc.SLOW_MO,
-            viewport={"width": 1280, "height": 900},
-        )
+        launch_kwargs = {
+            "user_data_dir": str(sc.PERFIL_NAVEGADOR),
+            "headless": False,
+            "slow_mo": sc.SLOW_MO,
+            "viewport": {"width": 1280, "height": 900},
+        }
+        try:
+            browser = p.chromium.launch_persistent_context(channel="chrome", **launch_kwargs)
+        except Exception:
+            browser = p.chromium.launch_persistent_context(**launch_kwargs)
+
+
         page = browser.pages[0] if browser.pages else browser.new_page()
         sc.tratar_dialogo_confirmacao(page)
 
@@ -230,9 +236,27 @@ def main():
                 letras_str = input("Letras das colunas de nota do Excel (separadas por vírgula. Ex: B, C): ").strip()
                 letras_colunas = [l.strip() for l in letras_str.split(",") if l.strip()]
 
+                formato_opt = input("Formato decimal [1] Ponto (ex: 3.5, 3.0 - Padrão Sigeduc) | [2] Vírgula (3,5) | [3] Original [Padrão: 1]: ").strip()
+                if formato_opt == "2":
+                    formato_nota = "virgula"
+                elif formato_opt == "3":
+                    formato_nota = "original"
+                else:
+                    formato_nota = "ponto"
+
+                unidade_opt = input("Qual a Unidade desejada? [1] 1ª Unidade | [2] 2ª Unidade | [3] 3ª Unidade | [4] 4ª Unidade [Padrão: 1]: ").strip()
+                if unidade_opt in ["2", "2ª", "2a"]:
+                    unidade_selecionada = "2ª Unidade"
+                elif unidade_opt in ["3", "3ª", "3a"]:
+                    unidade_selecionada = "3ª Unidade"
+                elif unidade_opt in ["4", "4ª", "4a"]:
+                    unidade_selecionada = "4ª Unidade"
+                else:
+                    unidade_selecionada = "1ª Unidade"
+
                 try:
-                    dados_notas = sc.ler_notas_xlsx(caminho_arquivo, letras_colunas)
-                    sc.logger.info(f"  ✓ Notas de {len(dados_notas)} alunos carregadas das colunas {', '.join(letras_colunas)} do Excel.")
+                    dados_notas = sc.ler_notas_xlsx(caminho_arquivo, letras_colunas, formato=formato_nota)
+                    sc.logger.info(f"  ✓ Notas de {len(dados_notas)} alunos carregadas das colunas {', '.join(letras_colunas)} do Excel [Formato: {formato_nota}].")
                 except Exception as e:
                     sc.logger.error(f"Erro ao ler arquivo XLSX: {e}")
                     continue
@@ -247,23 +271,35 @@ def main():
                 sc.logger.info("=" * 60)
                 sc.logger.info("  1. No Chrome, selecione a turma desejada.")
                 sc.logger.info("  2. Vá em 'Diário de Classe' -> 'Notas' e acesse a tela de lançamento.")
-                sc.logger.info("  3. Certifique-se de que a tabela com as notas e os campos em branco está aberta.")
-                sc.logger.info("  4. Volte a este terminal e pressione [ENTER] abaixo.")
+                sc.logger.info(f"  3. Unidade selecionada: {unidade_selecionada} (o robô verificará e ativará a aba correta).")
+                sc.logger.info("  4. Certifique-se de que a tabela com as notas e os campos em branco está aberta.")
+                sc.logger.info("  5. Volte a este terminal e pressione [ENTER] abaixo.")
                 sc.logger.info("=" * 60)
                 sc.trazer_navegador_para_frente()
                 input("Pressione ENTER no terminal quando estiver pronto para preencher...")
 
-                sc.logger.info("Preenchendo notas...")
-                qtd = sc.lancar_notas(page, dados_notas)
+                sc.logger.info(f"Preenchendo notas na {unidade_selecionada}...")
+                qtd = sc.lancar_notas(page, dados_notas, unidade=unidade_selecionada)
                 sc.logger.info(f"  ✓ {qtd} alunos preenchidos com as notas.")
 
                 if sc.preencher_senha_e_gravar(page, senha):
                     sc.aguardar_pos_gravacao(page)
+
+                    # Pergunta se deseja lançar Falta Vinculada (FV)
+                    resp_fv = input(f"\nDeseja atribuir Falta Vinculada (FV) automaticamente na {unidade_selecionada}? (S/N) [S]: ").strip().lower()
+                    if resp_fv in ["", "s", "sim", "y"]:
+                        sc.processar_pergunta_notas_em_branco(page, deve_preencher_fv=True)
+                        qtd_fv = sc.preencher_faltas_vinculadas(page, dados_notas, senha=senha, unidade=unidade_selecionada)
+                        if qtd_fv > 0:
+                            sc.logger.info(f"  ✓ {qtd_fv} Faltas Vinculadas atribuídas e confirmadas com senha na {unidade_selecionada}!")
+                    else:
+                        sc.processar_pergunta_notas_em_branco(page, deve_preencher_fv=False)
+
                     conteudo_final = sc.obter_conteudo_seguro(page).lower()
-                    if "sucesso" in conteudo_final or "cadastrad" in conteudo_final:
+                    if any(p in conteudo_final for p in ["sucesso", "cadastrad", "gravad", "alterad", "atualizad"]):
                         sc.logger.info("  ✅ Notas gravadas com sucesso!")
                     else:
-                        sc.logger.warning("  ⚠ Notas podem ter falhado. Verifique no site.")
+                        sc.logger.info("  ✅ Gravação submetida. Verifique no site.")
                 else:
                     sc.logger.error("  ❌ Falha ao tentar gravar as notas.")
 

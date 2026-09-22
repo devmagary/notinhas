@@ -1,4 +1,4 @@
-# Playwright / Perfis do navegador
+# Playwright / Perfis do navegador e sessões locais
 perfil_navegador/
 
 # Arquivos de log e configuração local
@@ -8,21 +8,37 @@ config.json
 
 # Cache do Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 .Python
 env/
 venv/
+ENV/
 .env
+.env*
+*.zip
+package*.json
 
-# Arquivos temporários e de edição
+# PyInstaller builds e executáveis
+build/
+dist/
+*.spec
+
+# IDE e editores
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Exemplos de dados locais do usuário
-*.csv
-*.txt
+# Dados pessoais e planilhas reais de alunos (LGPD / Privacidade)
 *.xlsx
+*.xls
+*.csv
+!exemplo_*.txt
+!exemplo_*.csv
+
+# Pasta de testes/scratch temporários
+scratch/
+
+# Pasta duplicada aninhada
+sigeduc-auto/

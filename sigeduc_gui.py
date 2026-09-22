@@ -201,7 +201,9 @@ class SigeducGUI(ctk.CTk):
         super().__init__()
 
         self.title("Sigeduc Auto - Interface Gráfica")
-        self.geometry("850x650")
+        self.geometry("850x700")
+        
+        self._definir_icone()
         
         # Grid layout da janela principal
         self.grid_rowconfigure(0, weight=1)
@@ -222,6 +224,22 @@ class SigeducGUI(ctk.CTk):
         print("=== BEM-VINDO AO SIGEDUC AUTO ===")
         print("Preencha os dados na aba 'Operação' e clique em Iniciar.")
         print("Tudo o que o robô fizer aparecerá aqui em tempo real.\n")
+        
+    def _definir_icone(self):
+        """Define o ícone da janela e barra de tarefas de forma segura."""
+        try:
+            if getattr(sys, 'frozen', False):
+                icone_path = os.path.join(sys._MEIPASS, "icon.ico")
+            else:
+                icone_path = os.path.join(os.path.dirname(__file__), "icon.ico")
+                
+            self.iconbitmap(icone_path)
+            # Para Tkinter em algumas versões do Windows, isso também ajuda na barra de tarefas
+            import ctypes
+            myappid = 'com.sigeduc.auto.1'
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception as e:
+            pass # Ignora silenciosamente caso o ícone não exista ou dê erro
         
     def setup_aba_operacao(self):
         # --- SEÇÃO 1: TAREFA ---
@@ -267,6 +285,46 @@ class SigeducGUI(ctk.CTk):
         
         self.entry_colunas = ctk.CTkEntry(self.frame_colunas, width=400, placeholder_text="Ex: B, C, D ou Z, F")
         self.entry_colunas.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+
+        # Formato decimal das notas
+        self.label_formato_nota = ctk.CTkLabel(self.frame_colunas, text="Formato Decimal das Notas:", font=ctk.CTkFont(weight="bold"))
+        self.label_formato_nota.grid(row=3, column=0, padx=10, pady=(10, 2), sticky="w")
+
+        self.formato_nota_var = ctk.StringVar(value="ponto")
+        self.frame_formato_opcoes = ctk.CTkFrame(self.frame_colunas, fg_color="transparent")
+        self.frame_formato_opcoes.grid(row=4, column=0, padx=10, pady=2, sticky="w")
+
+        self.radio_ponto = ctk.CTkRadioButton(self.frame_formato_opcoes, text="Ponto: 7.5 ou 7.0 (Padrão Sigeduc)", variable=self.formato_nota_var, value="ponto")
+        self.radio_ponto.grid(row=0, column=0, padx=(0, 15), pady=2, sticky="w")
+
+        self.radio_virgula = ctk.CTkRadioButton(self.frame_formato_opcoes, text="Vírgula: 7,5 ou 7,0", variable=self.formato_nota_var, value="virgula")
+        self.radio_virgula.grid(row=0, column=1, padx=(0, 15), pady=2, sticky="w")
+
+        self.radio_original = ctk.CTkRadioButton(self.frame_formato_opcoes, text="Original da planilha", variable=self.formato_nota_var, value="original")
+        self.radio_original.grid(row=0, column=2, padx=(0, 10), pady=2, sticky="w")
+
+        # Opção de Falta Vinculada (FV)
+        self.chk_fv_var = ctk.BooleanVar(value=True)
+        self.chk_fv = ctk.CTkCheckBox(
+            self.frame_colunas,
+            text="Atribuir Falta Vinculada (FV) nas notas em branco automaticamente",
+            variable=self.chk_fv_var,
+            font=ctk.CTkFont(weight="bold")
+        )
+        self.chk_fv.grid(row=5, column=0, padx=10, pady=(10, 2), sticky="w")
+
+        # Seleção da Unidade Avaliativa
+        self.label_unidade = ctk.CTkLabel(self.frame_colunas, text="Unidade Avaliativa:", font=ctk.CTkFont(weight="bold"))
+        self.label_unidade.grid(row=6, column=0, padx=10, pady=(10, 2), sticky="w")
+
+        self.unidade_var = ctk.StringVar(value="1ª Unidade")
+        self.seg_unidade = ctk.CTkSegmentedButton(
+            self.frame_colunas,
+            values=["1ª Unidade", "2ª Unidade", "3ª Unidade", "4ª Unidade"],
+            variable=self.unidade_var
+        )
+        self.seg_unidade.grid(row=7, column=0, padx=10, pady=2, sticky="w")
+
         
         # --- SEÇÃO 4: MODO DE OPERAÇÃO (Só aparece para Frequência) ---
         self.label_modo = ctk.CTkLabel(self.frame_datas, text="4. Modo de Operação (Quem está na lista?):", font=ctk.CTkFont(weight="bold"))
@@ -478,12 +536,14 @@ class SigeducGUI(ctk.CTk):
                 return
             letras_colunas = [l.strip() for l in letras_str.split(",") if l.strip()]
             
+            formato_nota = self.formato_nota_var.get()
+            unidade_selecionada = self.unidade_var.get() if hasattr(self, "unidade_var") else "1ª Unidade"
             try:
-                dados_notas = sf.ler_notas_xlsx(caminho_arquivo, letras_colunas)
+                dados_notas = sf.ler_notas_xlsx(caminho_arquivo, letras_colunas, formato=formato_nota)
                 if not dados_notas:
                     print("❌ Erro: Nenhuma nota válida extraída do Excel.")
                     return
-                print(f"✓ Notas de {len(dados_notas)} alunos extraídas das {len(letras_colunas)} colunas ({', '.join(letras_colunas)}).")
+                print(f"✓ Notas de {len(dados_notas)} alunos extraídas das {len(letras_colunas)} colunas ({', '.join(letras_colunas)}) [Formato: {formato_nota}] | Unidade: {unidade_selecionada}.")
             except Exception as e:
                 print(f"❌ Erro ao ler arquivo XLSX: {e}")
                 return
@@ -498,12 +558,18 @@ class SigeducGUI(ctk.CTk):
         # ==========================================================
         print("\nIniciando navegador Chrome...")
         with sf.sync_playwright() as p:
-            browser = p.chromium.launch_persistent_context(
-                user_data_dir=str(sf.PERFIL_NAVEGADOR),
-                headless=False,
-                slow_mo=200,
-                viewport={"width": 1280, "height": 900},
-            )
+            launch_kwargs = {
+                "user_data_dir": str(sf.PERFIL_NAVEGADOR),
+                "headless": False,
+                "slow_mo": 200,
+                "viewport": {"width": 1280, "height": 900},
+            }
+            try:
+                browser = p.chromium.launch_persistent_context(channel="chrome", **launch_kwargs)
+            except Exception:
+                browser = p.chromium.launch_persistent_context(**launch_kwargs)
+
+
             page = browser.pages[0] if browser.pages else browser.new_page()
             sf.tratar_dialogo_confirmacao(page)
             
@@ -626,27 +692,44 @@ class SigeducGUI(ctk.CTk):
                     [
                         "No Chrome, acesse o menu de turmas e selecione a turma desejada.",
                         "Acesse 'Diário de Classe' -> 'Notas'.",
-                        "Escolha a unidade/bimestre correto para lançar as notas.",
+                        f"Unidade selecionada: {unidade_selecionada} (o robô verificará e ativará a aba correta).",
                         "Certifique-se de que a tabela com os campos de notas está visível na tela.",
                         "Volte aqui e clique no botão abaixo para preencher as notas."
                     ],
                     "notas"
                 )
                 
-                print("  Lendo nomes e preenchendo inputs na tela...")
-                qtd = sf.lancar_notas(page, dados_notas)
+                print(f"  Verificando aba da {unidade_selecionada} e preenchendo notas na tela...")
+                qtd = sf.lancar_notas(page, dados_notas, unidade=unidade_selecionada)
                 print(f"  ✓ {qtd} alunos receberam notas do Excel.")
                 
                 if usar_senha:
                     print("  Tentando gravar automaticamente...")
                     if sf.preencher_senha_e_gravar(page, senha):
                         sf.aguardar_pos_gravacao(page)
-                        conteudo_final = sf.obter_conteudo_seguro(page).lower()
-                        if "sucesso" in conteudo_final or "cadastrad" in conteudo_final:
-                            print(f"  ✅ Notas gravadas com sucesso!")
-                            messagebox.showinfo("Concluído", "Notas gravadas com sucesso!")
+
+                        # Processa pergunta sobre notas em branco e tela de Falta Vinculada (FV)
+                        qtd_fv = 0
+                        if self.chk_fv_var.get():
+                            print("  Processando pergunta de notas em branco e tela de Falta Vinculada (FV)...")
+                            sf.processar_pergunta_notas_em_branco(page, deve_preencher_fv=True)
+                            qtd_fv = sf.preencher_faltas_vinculadas(page, dados_notas, senha=senha, unidade=unidade_selecionada)
+                            if qtd_fv > 0:
+                                print(f"  ✓ {qtd_fv} Faltas Vinculadas atribuídas e confirmadas com senha!")
                         else:
-                            print(f"  ⚠ A gravação das notas pode ter falhado. Verifique.")
+                            sf.processar_pergunta_notas_em_branco(page, deve_preencher_fv=False)
+
+                        conteudo_final = sf.obter_conteudo_seguro(page).lower()
+                        msg_sucesso = "Notas gravadas com sucesso!"
+                        if qtd_fv > 0:
+                            msg_sucesso += f"\n({qtd_fv} Faltas Vinculadas confirmadas na {unidade_selecionada})"
+
+                        if any(p in conteudo_final for p in ["sucesso", "cadastrad", "gravad", "alterad", "atualizad"]):
+                            print(f"  ✅ {msg_sucesso}")
+                            messagebox.showinfo("Concluído", msg_sucesso)
+                        else:
+                            print(f"  ✅ Gravação submetida! Verifique a confirmação no SIGEduc.")
+                            messagebox.showinfo("Concluído", f"Gravação enviada com sucesso!\n{msg_sucesso}\nVerifique a confirmação no portal.")
                     else:
                         print("  ❌ Falha ao tentar gravar as notas.")
                 else:
@@ -656,11 +739,37 @@ class SigeducGUI(ctk.CTk):
                         [
                             "As notas foram preenchidas nos campos da tela pelo robô.",
                             "Revise se as notas de cada aluno estão corretas no Chrome.",
-                            "Digite sua senha no site e clique no botão 'Gravar/Salvar' do portal.",
-                            "Aguarde o portal confirmar o sucesso da gravação, depois clique abaixo."
+                            "Clique no botão 'Gravar' no final da página.",
+                            "No popup 'Confirme sua senha' que abrir, digite sua senha e clique em 'Confirmar'.",
+                            "Aguarde o portal salvar as notas, depois volte aqui e clique abaixo."
                         ],
                         "gravacao"
                     )
+
+                    # Pergunta interativa sobre Falta Vinculada (FV)
+                    perguntar_fv = messagebox.askyesno(
+                        "Lançar Faltas Vinculadas (FV)?",
+                        f"Deseja que o robô preencha automaticamente as Faltas Vinculadas (FV) da {unidade_selecionada} para as notas em branco?"
+                    )
+                    if perguntar_fv:
+                        print(f"  Lançando Faltas Vinculadas (FV) automaticamente na {unidade_selecionada}...")
+                        sf.processar_pergunta_notas_em_branco(page, deve_preencher_fv=True)
+                        qtd_fv = sf.preencher_faltas_vinculadas(page, dados_notas, senha="", unidade=unidade_selecionada)
+                        print(f"  ✓ {qtd_fv} Faltas Vinculadas marcadas.")
+                        self.mostrar_instrucoes_sync(
+                            "Confirmar Senha para Faltas Vinculadas",
+                            [
+                                f"{qtd_fv} Faltas Vinculadas foram marcadas nas caixas da tela pelo robô na {unidade_selecionada}.",
+                                "Clique no botão 'Gravar' no final da página de FV (se ainda não clicado).",
+                                "No popup 'Confirme sua senha' que abrir, digite sua senha e clique em 'Confirmar'.",
+                                "Aguarde o portal confirmar o sucesso e clique abaixo."
+                            ],
+                            "gravacao"
+                        )
+                        messagebox.showinfo("Concluído", f"Automação de FV concluída!\n{qtd_fv} Faltas Vinculadas atribuídas.")
+                    else:
+                        print("  Opção de FV ignorada pelo usuário. Respondendo 'Não' no portal...")
+                        sf.processar_pergunta_notas_em_branco(page, deve_preencher_fv=False)
                     
             print("\nFechando navegador...")
             # O navegador fecha sozinho ao sair do bloco 'with'

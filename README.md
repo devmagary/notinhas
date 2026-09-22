@@ -1,53 +1,87 @@
-# Sigeduc Auto 🤖🎓
+# Sigeduc Auto
 
-Uma automação feita em Python para facilitar a vida dos professores da rede estadual da Bahia. O **Sigeduc Auto** preenche automaticamente as frequências (presenças e faltas) e lança as notas dos alunos no portal Sigeduc BA, lendo os dados diretamente de planilhas Excel (XLSX) ou arquivos de texto (CSV/TXT).
+Automação em Python desenvolvida para simplificar e agilizar a rotina de professores no portal SIGEduc (Rede Estadual da Bahia). O sistema automatiza o lançamento em lote de frequências (presenças e faltas) e notas avaliativas lendo diretamente de planilhas Excel (XLSX) ou arquivos de texto (CSV/TXT).
 
-## ✨ Funcionalidades
+---
 
-- **Lançamento de Frequência em Massa:** Escolha múltiplas datas no calendário e o robô preenche as faltas e presenças para todos os alunos de uma vez.
-- **Lançamento de Notas:** Lê as notas de um arquivo Excel (Simulado, Atividades, etc.) e digita nos campos corretos do portal.
-- **Navegação Inteligente:** Sobrevive a quedas de conexão e recarregamentos da página, além de não precisar de scripts complexos instalados no navegador.
-- **Sessão Salva:** Você só faz login uma vez! O robô guarda o perfil do seu navegador localmente, agilizando os próximos acessos.
-- **Interface Gráfica Amigável:** Uma tela fácil de usar com barra de progresso, botão de cancelar (parada de emergência) e relatórios visuais.
+## Funcionalidades
 
-## 🚀 Como Usar
+- **Lançamento de Frequência em Massa:** Permite selecionar múltiplas datas via calendário interativo ou digitação para preenchimento sequencial das listas de chamada.
+- **Lançamento de Notas por Coluna:** Lê as notas de atividades (Simulado, Atividade 1, Atividade 2, etc.) na ordem indicada das colunas da planilha e preenche nos campos correspondentes do portal.
+- **Seleção e Troca Automática de Unidade:** Controle para definir a unidade avaliativa (1ª, 2ª, 3ª ou 4ª Unidade). O robô verifica o componente de abas do SIGEduc e comuta automaticamente para a unidade correta caso o portal reinicie na primeira.
+- **Atribuição de Falta Vinculada (FV):** Identifica notas em branco ou registros de ausência e marca as checkboxes de Falta Vinculada na tela de verificação de avaliações não realizadas.
+- **Desambiguação Avançada de Nomes:** Sistema de correspondência com normalização Unicode (remoção de acentos e cedilha), tratamento fonético e verificação estrita de sobrenomes de família. Evita duplicações ou trocas de notas entre estudantes com prenomes iguais (por exemplo, Maria Vitória Santos Lisboa vs. Maria Vitória Tosta do Amaral).
+- **Tratamento de Formato Decimal:** Suporte a notas com separador decimal por ponto (padrão do portal), vírgula ou formato original.
+- **Gravação com Confirmação de Senha:** Suporte ao preenchimento automatizado de senha no novo popup modal de confirmação do SIGEduc, com opção de modo manual para revisão prévia.
+- **Duas Opções de Interface:** Interface gráfica moderna (GUI) com acompanhamento de logs em tempo real e versão via terminal (CLI).
 
-### 💻 Opção 1: Usando o Executável (.exe) - Para Computadores sem Python
-A maneira mais fácil de usar é baixando o aplicativo compilado:
-1. Faça o download do arquivo `sigeduc_gui.exe`.
-2. Dê um duplo clique para abrir.
-3. *Na primeira vez que você abrir em um computador novo*, o aplicativo fará um download rápido dos navegadores necessários (Playwright) em segundo plano, usando a internet. Depois disso, a tela inicial abrirá automaticamente.
+---
 
-### 🐍 Opção 2: Rodando pelo Código-Fonte (Para desenvolvedores)
-Certifique-se de ter o [Python](https://www.python.org/downloads/) instalado na sua máquina (versão 3.8 ou superior).
+## Estrutura do Projeto
 
-O aplicativo instala as bibliotecas necessárias automaticamente no primeiro uso. Basta executar:
+- `sigeduc_gui.py`: Interface gráfica para o usuário construída em CustomTkinter.
+- `sigeduc_core.py`: Motor de automação com Playwright, tratamento de DOM, normalização de nomes e lógica de navegação.
+- `lancar_frequencia.py`: Interface interativa de linha de comando (CLI).
+- `requirements.txt`: Relação de dependências do projeto.
+- `exemplo_alunos.txt`: Arquivo modelo com lista de estudantes para testes de frequência.
 
+---
+
+## Requisitos e Instalação
+
+Necessário **Python 3.8** ou superior instalado.
+
+1. Clone o repositório ou baixe os arquivos do projeto:
+   ```bash
+   git clone https://github.com/devmagary/notinhas.git
+   cd notinhas
+   ```
+
+2. Instale as dependências listadas:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Instale os navegadores do Playwright (se for a primeira utilização do Playwright na máquina):
+   ```bash
+   playwright install chromium
+   ```
+
+---
+
+## Como Executar
+
+### Interface Gráfica (Recomendado)
+
+Execute o comando no terminal:
 ```bash
 python sigeduc_gui.py
 ```
-*(Ou dê um duplo clique no arquivo `sigeduc_gui.py` se o Windows estiver configurado para executar arquivos Python)*
 
-### Passo a Passo
+Passo a passo na interface:
+1. Escolha a tarefa desejada: **Lançar Frequência** ou **Lançar Notas**.
+2. Selecione o arquivo de dados (`.xlsx`, `.csv` ou `.txt`).
+3. Para notas: informe as letras das colunas da planilha na mesma ordem da tela do SIGEduc (exemplo: `D, B, C`), selecione a **Unidade Avaliativa** e a opção de **Falta Vinculada (FV)**.
+4. Para frequência: selecione as datas desejadas no calendário.
+5. Marque a opção de gravação automática e informe a senha do portal (opcional).
+6. Clique em **Iniciar Automação** e acompanhe a execução na janela do navegador e no painel de logs.
 
-1. Abra o aplicativo.
-2. Na aba **Operação**, escolha a tarefa: *Lançar Frequência* ou *Lançar Notas*.
-3. Clique em **Procurar...** e selecione sua planilha Excel (`.xlsx`) ou lista de texto com os alunos.
-4. (Para frequência) Clique em **Abrir Calendário** e adicione as datas que deseja lançar.
-5. Selecione a senha (opcional, para gravação automática).
-6. Clique em **▶ INICIAR AUTOMAÇÃO** e siga as instruções na tela. O navegador Chrome abrirá sozinho.
+### Linha de Comando (CLI)
 
-## 🛠️ Tecnologias Utilizadas
+Para operar diretamente pelo terminal sem interface gráfica:
+```bash
+python lancar_frequencia.py
+```
 
-- **[Playwright](https://playwright.dev/python/)**: Para automação e controle do navegador Chrome sem a necessidade de drivers externos.
-- **[CustomTkinter](https://customtkinter.tomschimansky.com/)**: Para a interface gráfica moderna com suporte a tema claro/escuro.
-- **[OpenPyXL](https://openpyxl.readthedocs.io/)**: Para leitura e extração de dados de planilhas Excel.
+---
 
-## ⚠️ Avisos Importantes
+## Segurança e Privacidade
 
-- **Segurança:** Sua senha **não** é salva em nenhum arquivo. Ela é mantida apenas na memória durante a execução para que o robô possa clicar no botão "Gravar" por você.
-- O projeto usa correspondência inteligente de nomes para evitar preencher a nota de "Maria" no campo de "Mariana".
-- Se houver instabilidade no Sigeduc, a automação pausará e pedirá sua intervenção manual na interface para evitar a perda de dados.
+- **Senhas:** A senha informada é utilizada exclusivamente em memória no momento da gravação no portal e não é gravada em arquivos locais nem enviada a servidores externos.
+- **Proteção de Dados (LGPD):** O arquivo `.gitignore` vem configurado para ignorar planilhas reais de notas (`*.xlsx`, `*.csv`), logs locais e pastas de perfis de sessão do navegador (`perfil_navegador/`), impedindo a submissão acidental de dados pessoais de estudantes a repositórios públicos.
 
-## 📝 Licença
-Este projeto é de uso livre. Desenvolvido para facilitar o fluxo de trabalho escolar.
+---
+
+## Licença
+
+Este projeto é de uso livre para fins educacionais e apoio à atividade docente.
