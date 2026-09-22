@@ -65,13 +65,27 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 # =====================================================================
 # Funções de Sanitização para o Excel
 # =====================================================================
-def formatar_nome_aba(turma: str, componente: str, sufixo: str, abas_existentes: set[str] | None = None) -> str:
+def extrair_turno(texto: str) -> str:
+    """Extrai identificador conciso do turno (Mat, Vesp, Not, Int) de strings usando regex de fronteira."""
+    t_up = str(texto or "").upper()
+    if re.search(r"\b(MATUTINO|MAT|MANHA)\b", t_up):
+        return "Mat"
+    elif re.search(r"\b(VESPERTINO|VESP|VES|TARDE)\b", t_up):
+        return "Vesp"
+    elif re.search(r"\b(NOTURNO|NOT|NOITE)\b", t_up):
+        return "Not"
+    elif re.search(r"\b(INTEGRAL|INT)\b", t_up):
+        return "Int"
+    return ""
+
+
+def formatar_nome_aba(turma: str, componente: str, sufixo: str, abas_existentes: set[str] | None = None, turno: str = "") -> str:
     """
     Gera um nome de aba válido para o Excel respeitando rigorosamente:
+    - Inclusão do nome da Turma e do Turno (ex: 3A_Mat_Hist_U1, 2B_Vesp_Mat_U2);
     - Limite máximo de 31 caracteres;
     - Remoção dos caracteres proibidos: [ ] : ? * / \\
     - Prevenção de colisões com abas já existentes (adicionando sufixo _1, _2).
-    - Preservação do número e letra da turma (ex: 3A, 2B, 1EMI).
     """
     import unicodedata
 
@@ -96,36 +110,52 @@ def formatar_nome_aba(turma: str, componente: str, sufixo: str, abas_existentes:
             break
     if not comp_abrev:
         partes = [p for p in comp_limpo.split() if p not in sc.PREPOSICOES_NOME]
-        comp_abrev = partes[0][:6].capitalize() if partes else "Disc"
+        comp_abrev = partes[0][:5].capitalize() if partes else "Disc"
+
+    # Extrai o turno (Mat, Vesp, Not, Int) do parâmetro fornecido ou da turma
+    turno_tag = extrair_turno(turno) or extrair_turno(turma)
 
     # Limpa ordinais antes da normalização NFKD para não transformar 'º' na letra 'O'
     turma_sem_ord = re.sub(r"[º°ª]", "", str(turma or ""))
     turma_limpa = limpar_ascii(turma_sem_ord)
     
-    # Remove palavras estruturais como "ANO", "SERIE", "TURMA"
-    turma_sem_palavras = re.sub(r"\b(ANO|SERIE|SERIES|TURMA|MATUTINO|VESPERTINO|NOTURNO|INTEGRAL)\b", "", turma_limpa)
-    match_turma = re.search(r"(\d+)\s*([A-Z])\b", turma_sem_palavras)
+    # Remove palavras estruturais e menções a turnos
+    turma_sem_palavras = re.sub(
+        r"\b(ANO|SERIE|SERIES|TURMA|MATUTINO|VESPERTINO|NOTURNO|INTEGRAL|MAT|VESP|NOT|INT|MANHA|TARDE|NOITE)\b",
+        "",
+        turma_limpa
+    ).strip()
+
+    # Procura padrão '3A' ou '1EMI'
+    match_turma = re.search(r"(\d+)\s*([A-Z]{1,4})\b", turma_sem_palavras)
+    # Procura padrão 'INFO 2' -> 'Info2'
+    match_sigla_num = re.search(r"([A-Z]{2,})\s*(\d+)", turma_sem_palavras)
+
     if match_turma:
         turma_abrev = f"{match_turma.group(1)}{match_turma.group(2)}"
+    elif match_sigla_num:
+        turma_abrev = f"{match_sigla_num.group(1)[:4].capitalize()}{match_sigla_num.group(2)}"
     else:
-        digs = re.findall(r"\d+", turma_limpa)
+        digs = re.findall(r"\d+", turma_sem_palavras)
         letras = re.findall(r"[A-Z]", turma_sem_palavras)
         if digs and letras:
-            turma_abrev = f"{digs[0]}{letras[-1]}"
+            turma_abrev = f"{digs[0]}{letras[0]}"
         elif digs:
             turma_abrev = f"T{digs[0]}"
         else:
-            turma_abrev = re.sub(r"[^A-Za-z0-9]", "", turma_limpa)[:6] or "Turma"
+            turma_abrev = re.sub(r"[^A-Za-z0-9]", "", turma_sem_palavras)[:8] or "Turma"
 
-    # Formato padrão: "3A_Hist_U1" ou "3A_Hist_Freq"
-    base = f"{turma_abrev}_{comp_abrev}_{sufixo}"
+    # Constrói o nome com Turma + Turno + Disciplina + Sufixo (ex: 3A_Mat_Hist_U1)
+    if turno_tag:
+        base = f"{turma_abrev}_{turno_tag}_{comp_abrev}_{sufixo}"
+    else:
+        base = f"{turma_abrev}_{comp_abrev}_{sufixo}"
     
     # Remove caracteres estritamente proibidos pelo Excel: \ / ? * [ ] :
     base_limpa = re.sub(r'[:\\/?*\[\]]', '', base).strip()
     base_limpa = base_limpa[:31]
     if not base_limpa:
         base_limpa = f"Aba_{sufixo}"[:31]
-
 
     if abas_existentes is None:
         return base_limpa
@@ -140,6 +170,7 @@ def formatar_nome_aba(turma: str, componente: str, sufixo: str, abas_existentes:
 
     abas_existentes.add(candidato)
     return candidato
+
 
 
 # =====================================================================
@@ -265,57 +296,108 @@ class SigeducScraper:
             raise
         return False
 
-    def navegar_diario_classe(self) -> bool:
-        """Navega para a tela principal de turmas / Diário de Classe Digital de forma segura para o JSF."""
-        logger.info("Navegando para o Diário de Classe Digital...")
-        
-        # 1. Se já está na página do docente com turmas visíveis
-        if self._tem_tabela_turmas():
-            return True
-
-        # 2. Tenta a rota oficial do Struts/JSF que não quebra o ViewState
+    def esta_no_painel_docente(self) -> bool:
+        """
+        Verifica com precisão se a página atual é a tela principal de turmas do docente.
+        Garante que não estejamos em subpáginas de notas, frequência ou avaliações.
+        """
         try:
-            link_menu = self.page.query_selector("a:has-text('Menu Professor'), a[href*='verPortalDocente.do']")
-            if link_menu:
-                link_menu.click()
-                time.sleep(sc.ESPERA_CARREGAMENTO)
-                self.page.wait_for_load_state("domcontentloaded", timeout=12000)
-                if self._tem_tabela_turmas():
+            url = (self.page.url or "").lower()
+            # Se a URL contém marcadores óbvios de subpáginas, NÃO é o painel de turmas
+            if any(p in url for p in ["form_", "nota", "avaliacao", "frequencia", "calendario"]):
+                return False
+
+            tabelas = self.page.query_selector_all("table")
+            for t in tabelas:
+                txt = sc.normalizar_nome(t.inner_text() or "")
+                # Tabela de turmas no SIGEduc contém colunas estruturais características
+                if "TURMA" in txt and ("COMPONENTE" in txt or "DISCIPLINA" in txt) and any(k in txt for k in ["OFERTA", "SERIE", "ESCOLA", "PERIODICIDADE", "ANO"]):
                     return True
         except Exception:
             pass
-
-        # 3. Procura pelo link do menu "Diário de Classe" ou "Diário de Classe Digital"
-        links = self.page.query_selector_all("a")
-        for link in links:
-            try:
-                txt = sc.normalizar_nome(link.inner_text())
-                if "DIARIO DE CLASSE" in txt:
-                    link.click()
-                    time.sleep(sc.ESPERA_CARREGAMENTO)
-                    self.page.wait_for_load_state("domcontentloaded", timeout=10000)
-                    if self._tem_tabela_turmas():
-                        return True
-            except Exception:
-                continue
-
-        # 4. Fallback: navega para a URL do portal docente
-        self.page.goto(sc.URL_FREQUENCIA, wait_until="domcontentloaded", timeout=sc.TIMEOUT_PAGINA)
-        time.sleep(sc.ESPERA_CARREGAMENTO)
-        return self._tem_tabela_turmas()
-
-    def _tem_tabela_turmas(self) -> bool:
-        """Verifica se há tabela de turmas renderizada no DOM."""
-        for tabela in self.page.query_selector_all("table"):
-            txt = sc.normalizar_nome(tabela.inner_text() or "")
-            if ("COMPONENTE" in txt or "DISCIPLINA" in txt) and ("TURMA" in txt or "ALUNO" in txt):
-                return True
         return False
+
+    def navegar_diario_classe(self) -> bool:
+        """Navega para a tela principal de turmas / Diário de Classe Digital de forma segura para o JSF."""
+        logger.info("Navegando para o Diário de Classe Digital (Painel do Professor)...")
+
+        # 1. Se já está no painel docente real, conclui imediatamente
+        if self.esta_no_painel_docente():
+            logger.info("✓ Já está no painel principal do professor com turmas disponíveis.")
+            return True
+
+        # 2. Tenta clicar no botão "Voltar" da tela atual (comum em telas de notas)
+        try:
+            btn_voltar = self.page.query_selector(
+                "input[value*='Voltar'], button:has-text('Voltar'), a:has-text('Voltar'), input[type='button'][value*='Voltar'], input[type='submit'][value*='Voltar']"
+            )
+            if btn_voltar and btn_voltar.is_visible():
+                logger.info("Acionando botão 'Voltar'...")
+                btn_voltar.click()
+                time.sleep(sc.ESPERA_CARREGAMENTO)
+                self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                if self.esta_no_painel_docente():
+                    logger.info("✓ Retornou ao painel via botão 'Voltar'.")
+                    return True
+        except Exception as e:
+            logger.debug(f"Tentativa de botão Voltar: {e}")
+
+        # 3. Tenta o link 'Menu Professor' ou 'verPortalDocente.do' (rota nativa do SIGEduc)
+        try:
+            link_menu = self.page.query_selector(
+                "a:has-text('Menu Professor'), a[href*='verPortalDocente.do'], a:has-text('Portal do Docente'), a:has-text('Docente')"
+            )
+            if link_menu and link_menu.is_visible():
+                logger.info("Acionando link 'Menu Professor'...")
+                link_menu.click()
+                time.sleep(sc.ESPERA_CARREGAMENTO)
+                self.page.wait_for_load_state("domcontentloaded", timeout=12000)
+                if self.esta_no_painel_docente():
+                    logger.info("✓ Retornou ao painel via 'Menu Professor'.")
+                    return True
+        except Exception as e:
+            logger.debug(f"Tentativa de Menu Professor: {e}")
+
+        # 4. Procura links com texto 'Diário de Classe' ou 'Turmas'
+        try:
+            links = self.page.query_selector_all("a")
+            for link in links:
+                try:
+                    txt = sc.normalizar_nome(link.inner_text() or "")
+                    if "DIARIO DE CLASSE" in txt or "PORTAL DO DOCENTE" in txt:
+                        link.click()
+                        time.sleep(sc.ESPERA_CARREGAMENTO)
+                        self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                        if self.esta_no_painel_docente():
+                            return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # 5. Fallback direto: navega para URL_FREQUENCIA
+        logger.info("Carregando URL do portal docente diretamente...")
+        try:
+            self.page.goto(sc.URL_FREQUENCIA, wait_until="domcontentloaded", timeout=sc.TIMEOUT_PAGINA)
+            time.sleep(sc.ESPERA_CARREGAMENTO)
+            try:
+                self.page.wait_for_selector("table", timeout=10000)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning(f"Erro ao navegar para URL do portal: {e}")
+
+        sucesso = self.esta_no_painel_docente()
+        if sucesso:
+            logger.info("✓ Painel principal do docente carregado.")
+        else:
+            logger.warning("⚠️ Não foi possível confirmar visualmente o retorno ao painel de turmas.")
+        return sucesso
 
     def listar_turmas(self) -> list[dict[str, Any]]:
         """
         Mapeia todas as turmas disponíveis com metadados:
-        Nome da Turma, Ano, Escola, Oferta de Ensino, Ano/Série, Periodicidade,
+        Nome da Turma, Ano, Escola, Oferta de Ensino, Ano/Série, Turno, Periodicidade,
         Componente Curricular e Quantidade de Alunos.
         """
         self.navegar_diario_classe()
@@ -369,11 +451,9 @@ class SigeducScraper:
                     except Exception:
                         continue
 
-
                 # Extrai dados das colunas
                 textos_tds = [td.inner_text().strip() for td in tds]
                 
-                # Procura padrões de dados nas colunas
                 ano = ""
                 escola = ""
                 oferta = ""
@@ -382,6 +462,9 @@ class SigeducScraper:
                 periodicidade = "ANUAL"
                 componente = ""
                 qtd_alunos = 0
+
+                # Detecta turno na linha ou nos textos
+                turno_linha = extrair_turno(linha.inner_text())
 
                 for t in textos_tds:
                     if re.match(r"^202\d$", t):
@@ -413,6 +496,7 @@ class SigeducScraper:
                     "escola": escola or "SIGEduc BA",
                     "oferta_ensino": oferta or "Ensino Médio",
                     "ano_serie": serie or "Série Regular",
+                    "turno": turno_linha or extrair_turno(turma_nome),
                     "periodicidade": periodicidade,
                     "nome_turma": turma_nome or f"Turma {len(turmas) + 1}",
                     "componente_curricular": componente or "Componente Curricular",
@@ -437,13 +521,22 @@ class SigeducScraper:
 
         # Clica no botão/link de Lançar Resultados da turma
         btn_notas = turma_info.get("_btn_notas")
-        if btn_notas:
-            try:
-                btn_notas.click()
-                time.sleep(sc.ESPERA_CARREGAMENTO)
-                self.page.wait_for_load_state("domcontentloaded", timeout=15000)
-            except Exception as e:
-                logger.warning(f"Não foi possível clicar diretamente no botão de notas: {e}")
+        if not btn_notas:
+            logger.error(f"Botão de notas não encontrado para a turma {turma_nome}.")
+            return {}
+
+        try:
+            btn_notas.click()
+            time.sleep(sc.ESPERA_CARREGAMENTO)
+            self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+        except Exception as e:
+            logger.error(f"Não foi possível clicar no botão de notas da turma {turma_nome}: {e}")
+            return {}
+
+        # Verifica se realmente saiu do painel docente
+        if self.esta_no_painel_docente():
+            logger.error(f"❌ O clique no botão de notas não abriu a tela de notas da turma {turma_nome}.")
+            return {}
 
         # Aguarda tabela de notas
         try:
@@ -607,13 +700,22 @@ class SigeducScraper:
 
         # Clica no botão/link de frequência
         btn_freq = turma_info.get("_btn_freq")
-        if btn_freq:
-            try:
-                btn_freq.click()
-                time.sleep(sc.ESPERA_CARREGAMENTO)
-                self.page.wait_for_load_state("domcontentloaded", timeout=15000)
-            except Exception as e:
-                logger.warning(f"Não foi possível clicar diretamente no botão de frequência: {e}")
+        if not btn_freq:
+            logger.error(f"Botão de frequência não encontrado para a turma {turma_nome}.")
+            return pd.DataFrame()
+
+        try:
+            btn_freq.click()
+            time.sleep(sc.ESPERA_CARREGAMENTO)
+            self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+        except Exception as e:
+            logger.error(f"Não foi possível clicar diretamente no botão de frequência: {e}")
+            return pd.DataFrame()
+
+        # Verifica se saiu do painel docente
+        if self.esta_no_painel_docente():
+            logger.error(f"❌ O clique no botão de frequência não abriu a tela de frequência da turma {turma_nome}.")
+            return pd.DataFrame()
 
         # Garante página de calendário
         if not sc.garantir_pagina_calendario(self.page):
@@ -743,9 +845,9 @@ class SigeducScraper:
         abas_existentes.add("Resumo_Turmas")
 
         # Cabeçalho do Resumo
-        headers_resumo = ["Nº", "Ano", "Escola", "Oferta de Ensino", "Ano/Série", "Periodicidade", "Turma", "Componente Curricular", "Qtd Alunos"]
+        headers_resumo = ["Nº", "Ano", "Escola", "Oferta de Ensino", "Ano/Série", "Turno", "Periodicidade", "Turma", "Componente Curricular", "Qtd Alunos"]
         ws_resumo.append(["RELATÓRIO ACADÊMICO CONSOLIDADO — SIGEDUC BAHIA"])
-        ws_resumo.merge_cells("A1:I1")
+        ws_resumo.merge_cells("A1:J1")
         ws_resumo["A1"].font = Font(name="Segoe UI", size=13, bold=True, color="1F4E79")
         ws_resumo["A1"].alignment = Alignment(horizontal="left", vertical="center")
         ws_resumo.row_dimensions[1].height = 28
@@ -761,6 +863,7 @@ class SigeducScraper:
                 t.get("escola"),
                 t.get("oferta_ensino"),
                 t.get("ano_serie"),
+                t.get("turno") or "Regular",
                 t.get("periodicidade"),
                 t.get("nome_turma"),
                 t.get("componente_curricular"),
@@ -776,6 +879,7 @@ class SigeducScraper:
             t_info = item["turma_info"]
             turma_nome = t_info["nome_turma"]
             componente = t_info["componente_curricular"]
+            turno = t_info.get("turno") or extrair_turno(turma_nome)
 
             # Abas de Notas
             unidades_dict = item.get("notas_unidades", {})
@@ -783,11 +887,11 @@ class SigeducScraper:
                 if df_unidade.empty:
                     continue
 
-                nome_aba = formatar_nome_aba(turma_nome, componente, f"U{num_unidade}", abas_existentes)
+                nome_aba = formatar_nome_aba(turma_nome, componente, f"U{num_unidade}", abas_existentes, turno=turno)
                 ws = wb.create_sheet(title=nome_aba)
 
                 # Linha 1: Título e Identificação da Turma
-                ws.append([f"TURMA: {turma_nome} | DISCIPLINA: {componente} | {num_unidade}ª UNIDADE"])
+                ws.append([f"TURMA: {turma_nome} | TURNO: {turno or 'Regular'} | DISCIPLINA: {componente} | {num_unidade}ª UNIDADE"])
                 col_max = len(df_unidade.columns)
                 ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(col_max, 5))
                 ws["A1"].font = Font(name="Segoe UI", size=12, bold=True, color="1F4E79")
@@ -807,7 +911,7 @@ class SigeducScraper:
             # Aba de Frequência
             df_freq = item.get("frequencia_df")
             if df_freq is not None and not df_freq.empty:
-                nome_aba_freq = formatar_nome_aba(turma_nome, componente, "Freq", abas_existentes)
+                nome_aba_freq = formatar_nome_aba(turma_nome, componente, "Freq", abas_existentes, turno=turno)
                 ws_freq = wb.create_sheet(title=nome_aba_freq)
 
                 ws_freq.append([f"HISTÓRICO DE FREQUÊNCIA — TURMA: {turma_nome} | DISCIPLINA: {componente}"])
@@ -884,20 +988,37 @@ class SigeducScraper:
     def executar_extracao(self, modo: str = "todos", caminho_saida: str = "relatorio_academico_sigeduc.xlsx") -> str:
         """
         Fluxo orquestrado de ponta a ponta:
-        1. Lista todas as turmas
-        2. Extrai Notas e/ou Frequências conforme o modo
-        3. Gera a planilha Excel final
+        1. Garante presença no painel docente e lista turmas.
+        2. Para cada turma, re-obtém referências frescas do DOM, extrai Notas e/ou Frequência.
+        3. Retorna garantidamente ao painel docente antes de prosseguir para a próxima turma.
+        4. Consolida e gera a planilha Excel formatada.
         """
-        turmas = self.listar_turmas()
-        if not turmas:
+        self.navegar_diario_classe()
+        turmas_iniciais = self.listar_turmas()
+        if not turmas_iniciais:
             logger.warning("Nenhuma turma foi encontrada para extração.")
             return ""
 
+        total_turmas = len(turmas_iniciais)
+        logger.info(f"Total de turmas identificadas para processamento: {total_turmas}")
         dados_completos = []
 
-        for idx, t in enumerate(turmas, 1):
+        for idx in range(total_turmas):
+            # Garante que está no painel docente antes de processar cada turma
+            self.navegar_diario_classe()
+
+            # Obtém referências frescas da tabela para evitar ElementHandle detached/stale
+            turmas_frescas = self.listar_turmas()
+            if idx >= len(turmas_frescas):
+                logger.warning(f"Turma no índice {idx + 1} não encontrada na re-listagem.")
+                break
+
+            t = turmas_frescas[idx]
+            turma_nome = t["nome_turma"]
+            componente = t["componente_curricular"]
+
             logger.info(f"\n=======================================================")
-            logger.info(f"Processando Turma [{idx}/{len(turmas)}]: {t['nome_turma']} ({t['componente_curricular']})")
+            logger.info(f"Processando Turma [{idx + 1}/{total_turmas}]: {turma_nome} ({componente})")
             logger.info(f"=======================================================")
 
             turma_resultado = {"turma_info": t, "notas_unidades": {}, "frequencia_df": None}
@@ -906,21 +1027,23 @@ class SigeducScraper:
             if modo in ["notas", "todos"]:
                 notas = self.extrair_notas_turma(t)
                 turma_resultado["notas_unidades"] = notas
+                # Retorna ao painel docente após extrair notas
+                self.navegar_diario_classe()
 
             # Extração de Frequência
             if modo in ["frequencia", "todos"]:
-                self.navegar_diario_classe()
-                # Atualiza referência dos botões se a página recarregou
-                turmas_atualizadas = self.listar_turmas()
-                if idx - 1 < len(turmas_atualizadas):
-                    t_atualizada = turmas_atualizadas[idx - 1]
-                    freq_df = self.extrair_frequencia_turma(t_atualizada)
+                if not self.esta_no_painel_docente():
+                    self.navegar_diario_classe()
+                # Re-obtém referências frescas para a mesma turma após retornar ao painel
+                turmas_frescas_freq = self.listar_turmas()
+                if idx < len(turmas_frescas_freq):
+                    t_freq = turmas_frescas_freq[idx]
+                    freq_df = self.extrair_frequencia_turma(t_freq)
                     turma_resultado["frequencia_df"] = freq_df
+                # Retorna ao painel docente após extrair frequência
+                self.navegar_diario_classe()
 
             dados_completos.append(turma_resultado)
-
-            # Retorna para o diário antes da próxima turma
-            self.navegar_diario_classe()
 
         self.exportar_para_excel(dados_completos, caminho_saida)
         return caminho_saida
@@ -932,7 +1055,7 @@ class SigeducScraper:
 def main():
     parser = argparse.ArgumentParser(description="Extração de Dados Acadêmicos do SIGEduc Bahia para Excel")
     parser.add_argument("--headless", action="store_true", help="Executa o navegador em modo silencioso/background")
-    parser.add_argument("--modo", choices=["notas", "frequencia", "todos"], default="todos", help="Modo de extração")
+    parser.add_argument("--modo", choices=["notas", "frequencia", "todos"], default=None, help="Modo de extração: notas, frequencia ou todos")
     parser.add_argument("--usuario", type=str, default="", help="Usuário do SIGEduc")
     parser.add_argument("--saida", type=str, default="relatorio_academico_sigeduc.xlsx", help="Caminho do arquivo Excel de saída")
     args = parser.parse_args()
@@ -941,17 +1064,38 @@ def main():
     print("  SIGEDUC AUTO — MÓDULO DE EXTRAÇÃO & EXPORTAÇÃO EXCEL")
     print("=" * 65)
 
+    # Pergunta interativa para o modo de extração (se não foi passado via argumento)
+    modo = args.modo
+    if not modo:
+        print("\nEscolha o que deseja extrair do SIGEduc:")
+        print("  [1] Notas e Resultados por Unidade")
+        print("  [2] Frequência e Presença (Histórico Diário)")
+        print("  [3] Completo (Notas + Frequência)")
+        while True:
+            escolha = input("\nDigite a opção desejada [1, 2 ou 3] (padrão: 1): ").strip()
+            if not escolha or escolha == "1":
+                modo = "notas"
+                break
+            elif escolha == "2":
+                modo = "frequencia"
+                break
+            elif escolha == "3":
+                modo = "todos"
+                break
+            else:
+                print("⚠️ Opção inválida. Digite 1, 2 ou 3.")
+
     usuario = args.usuario
     senha = ""
 
     # Se não forneceu usuário via CLI, pergunta interativamente
     if not usuario:
-        usuario = input("Usuário do SIGEduc (deixe vazio se já estiver logado): ").strip()
+        usuario = input("\nUsuário do SIGEduc (deixe vazio se já estiver logado): ").strip()
 
     if usuario:
         senha = getpass.getpass("Senha do SIGEduc: ")
 
-    print(f"\nModo de Coleta: {args.modo.upper()}")
+    print(f"\nModo de Coleta Selecionado: {modo.upper()}")
     print(f"Arquivo de Saída: {args.saida}")
     print(f"Modo Headless: {'Sim (Background)' if args.headless else 'Não (Visível)'}\n")
 
@@ -962,7 +1106,7 @@ def main():
             print("Por favor, faça login manualmente no Chrome aberto.")
             input("Pressione [ENTER] após estar no painel principal do SIGEduc...")
 
-        arquivo_gerado = scraper.executar_extracao(modo=args.modo, caminho_saida=args.saida)
+        arquivo_gerado = scraper.executar_extracao(modo=modo, caminho_saida=args.saida)
         if arquivo_gerado:
             print("\n" + "=" * 65)
             print(f"🎉 Processo concluído! Planilha gerada com sucesso:")

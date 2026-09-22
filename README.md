@@ -80,7 +80,7 @@ python lancar_frequencia.py
 Para extrair as notas, atividades, faltas vinculadas e histórico de frequência de todas as turmas e gerar uma planilha Excel `.xlsx` multi-aba formatada:
 
 ```bash
-# Execução interativa (solicita usuário e senha no terminal de forma segura)
+# Execução interativa (pergunta interativamente o modo: Notas, Frequência ou Ambos, e credenciais seguras)
 python sigeduc_scraper.py
 
 # Apenas notas e resultados
@@ -89,7 +89,7 @@ python sigeduc_scraper.py --modo=notas --saida=notas_gerais.xlsx
 # Apenas histórico de frequência
 python sigeduc_scraper.py --modo=frequencia --saida=frequencia_geral.xlsx
 
-# Execução em background (silenciosa)
+# Execução completa em background (silenciosa)
 python sigeduc_scraper.py --headless --modo=todos --saida=relatorio_completo.xlsx
 ```
 
