@@ -339,6 +339,9 @@ class SigeducGUI(ctk.CTk):
         self.radio_m3.grid(row=5, column=0, padx=20, pady=5, sticky="w")
         self.radio_m4 = ctk.CTkRadioButton(self.frame_datas, text="[4] Dar Falta no resto e Não Mexer na Lista", variable=self.modo_var, value="4")
         self.radio_m4.grid(row=6, column=0, padx=20, pady=5, sticky="w")
+        self.radio_m5 = ctk.CTkRadioButton(self.frame_datas, text="[5] 100% Presentes: Dar presença a todos da turma (dispensa arquivo)", variable=self.modo_var, value="5")
+        self.radio_m5.grid(row=7, column=0, padx=20, pady=5, sticky="w")
+
         
         # --- SEÇÃO 5: SENHA E GRAVAÇÃO ---
         self.frame_senha = ctk.CTkFrame(self.tab_op, fg_color="transparent")
@@ -407,33 +410,42 @@ class SigeducGUI(ctk.CTk):
         textbox.pack(pady=5)
         
         def dia_clicado(event):
-            # selection_get() retorna um objeto datetime.date
             data_obj = cal.selection_get()
             if data_obj:
                 data_str = data_obj.strftime("%d/%m")
                 atual = textbox.get("1.0", "end").strip()
-                # Adiciona apenas se não estiver na caixa ainda para evitar repetidos acidentais
-                if data_str not in atual.split(", "):
-                    if atual:
-                        textbox.insert("end", ", " + data_str)
-                    else:
-                        textbox.insert("end", data_str)
-                    
+                lista_existente = sf.parsear_datas(atual)
+                pedacos = data_str.split("/")
+                nova_tupla = (int(pedacos[0]), int(pedacos[1]))
+                if nova_tupla not in lista_existente:
+                    lista_existente.append(nova_tupla)
+                    lista_existente.sort(key=lambda x: (x[1], x[0]))
+                    textbox.delete("1.0", "end")
+                    textbox.insert("1.0", ", ".join(f"{d:02d}/{m:02d}" for d, m in lista_existente))
+
         cal.bind("<<CalendarSelected>>", dia_clicado)
-        
+
+        def limpar():
+            textbox.delete("1.0", "end")
+
         def confirmar():
             datas_escolhidas = textbox.get("1.0", "end").strip()
             if datas_escolhidas:
                 atual_main = self.entry_datas.get().strip()
-                if atual_main:
-                    self.entry_datas.delete(0, "end")
-                    self.entry_datas.insert(0, atual_main + ", " + datas_escolhidas)
-                else:
-                    self.entry_datas.insert(0, datas_escolhidas)
+                combinadas = sf.parsear_datas(atual_main + ", " + datas_escolhidas)
+                self.entry_datas.delete(0, "end")
+                self.entry_datas.insert(0, ", ".join(f"{d:02d}/{m:02d}" for d, m in combinadas))
             top.destroy()
-            
-        btn_ok = ctk.CTkButton(top, text="Adicionar Datas", command=confirmar, fg_color="#2FA572", hover_color="#106A43")
-        btn_ok.pack(pady=15)
+
+        frame_botoes = ctk.CTkFrame(top, fg_color="transparent")
+        frame_botoes.pack(pady=15)
+
+        btn_limpar = ctk.CTkButton(frame_botoes, text="Limpar", command=limpar, fg_color="#c0392b", hover_color="#962d22", width=100)
+        btn_limpar.grid(row=0, column=0, padx=10)
+
+        btn_ok = ctk.CTkButton(frame_botoes, text="Adicionar Datas", command=confirmar, fg_color="#2FA572", hover_color="#106A43", width=140)
+        btn_ok.grid(row=0, column=1, padx=10)
+
             
     def iniciar_thread(self):
         """Dispara a automação em uma thread separada para não travar a janela visual."""
@@ -507,28 +519,36 @@ class SigeducGUI(ctk.CTk):
         print("="*60)
         
         # Validação de arquivo
-        if not os.path.exists(caminho_arquivo):
+        if tarefa == "frequencia" and modo == "5":
+            # Modo 5: 100% Presentes não exige arquivo de alunos
+            pass
+        elif not os.path.exists(caminho_arquivo):
             print(f"❌ Erro: Arquivo '{caminho_arquivo}' não encontrado.")
             return
-            
+
         nomes = []
         dados_notas = {}
         datas = []
-        
+
         # Carregamento do Arquivo
         if tarefa == "frequencia":
-            nomes = sf.ler_nomes(caminho_arquivo)
-            if not nomes:
-                print("❌ Erro: Nenhum nome encontrado no arquivo.")
-                return
-            print(f"✓ {len(nomes)} alunos carregados da lista.")
-            
+            if modo == "5":
+                nomes = []
+                print("✓ Modo [5] Selecionado: 100% Presentes (todos os alunos da turma receberão presença).")
+            else:
+                nomes = sf.ler_nomes(caminho_arquivo)
+                if not nomes:
+                    print("❌ Erro: Nenhum nome encontrado no arquivo.")
+                    return
+                print(f"✓ {len(nomes)} alunos carregados da lista.")
+
             texto_datas = self.entry_datas.get().strip()
             datas = sf.parsear_datas(texto_datas)
             if not datas:
-                print("❌ Erro: Nenhuma data válida fornecida. Use o formato DD/MM.")
+                print("❌ Erro: Nenhuma data válida fornecida. Use o formato DD/MM (ex: 11/03, 18/03).")
                 return
-            print(f"✓ {len(datas)} datas para lançar.")
+            print(f"✓ {len(datas)} datas para lançar: {', '.join(f'{d:02d}/{m:02d}' for d, m in datas)}")
+
         else:
             letras_str = self.entry_colunas.get().strip()
             if not letras_str:

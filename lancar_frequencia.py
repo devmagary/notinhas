@@ -109,34 +109,40 @@ def main():
                 sc.logger.info("  LANÇAMENTO DE FREQUÊNCIA")
                 sc.logger.info("-" * 50)
 
-                # --- Arquivo de alunos ---
-                caminho_arquivo = input("Caminho do arquivo de alunos (CSV/TXT/XLSX): ").strip().strip('"')
-                while not os.path.exists(caminho_arquivo):
-                    sc.logger.error(f"Erro: Arquivo '{caminho_arquivo}' não encontrado.")
-                    caminho_arquivo = input("Caminho do arquivo de alunos (CSV/TXT/XLSX): ").strip().strip('"')
-
-                nomes = sc.ler_nomes(caminho_arquivo)
-                sc.logger.info(f"  ✓ {len(nomes)} nomes carregados.")
-
-                # --- Datas ---
-                texto_datas = input("Datas para lançar (DD/MM separado por vírgula): ").strip()
-                datas = sc.parsear_datas(texto_datas)
-                while not datas:
-                    sc.logger.warning("Erro: Nenhuma data válida.")
-                    texto_datas = input("Datas para lançar (DD/MM separado por vírgula): ").strip()
-                    datas = sc.parsear_datas(texto_datas)
-                sc.logger.info(f"  ✓ {len(datas)} datas informadas.")
-
                 # --- Modo de operação ---
                 sc.logger.info("\nEscolha o modo de operação:")
                 sc.logger.info(" [1] MARCAR FALTA na lista e PRESENÇA no resto")
                 sc.logger.info(" [2] DAR PRESENÇA na lista e MARCAR FALTA no resto")
                 sc.logger.info(" [3] DAR PRESENÇA na lista e NÃO MEXER no resto")
                 sc.logger.info(" [4] MARCAR FALTA apenas no resto e NÃO MEXER na lista")
+                sc.logger.info(" [5] 100% PRESENTES: Dar presença a todos da turma (não requer arquivo)")
                 while True:
-                    modo = input("Escolha a opção (1, 2, 3 ou 4): ").strip()
-                    if modo in ["1", "2", "3", "4"]:
+                    modo = input("Escolha a opção (1, 2, 3, 4 ou 5): ").strip()
+                    if modo in ["1", "2", "3", "4", "5"]:
                         break
+
+                # --- Arquivo de alunos ---
+                if modo == "5":
+                    nomes = []
+                    sc.logger.info("  ✓ Modo [5] 100% Presentes ativado (dispensa arquivo de alunos).")
+                else:
+                    caminho_arquivo = input("Caminho do arquivo de alunos (CSV/TXT/XLSX): ").strip().strip('"')
+                    while not os.path.exists(caminho_arquivo):
+                        sc.logger.error(f"Erro: Arquivo '{caminho_arquivo}' não encontrado.")
+                        caminho_arquivo = input("Caminho do arquivo de alunos (CSV/TXT/XLSX): ").strip().strip('"')
+
+                    nomes = sc.ler_nomes(caminho_arquivo)
+                    sc.logger.info(f"  ✓ {len(nomes)} nomes carregados.")
+
+                # --- Datas ---
+                texto_datas = input("Datas para lançar (ex: 11/03, 18/03 ou separadas por espaço): ").strip()
+                datas = sc.parsear_datas(texto_datas)
+                while not datas:
+                    sc.logger.warning("Erro: Nenhuma data válida.")
+                    texto_datas = input("Datas para lançar (ex: 11/03, 18/03): ").strip()
+                    datas = sc.parsear_datas(texto_datas)
+                sc.logger.info(f"  ✓ {len(datas)} datas informadas: {', '.join(f'{d:02d}/{m:02d}' for d, m in datas)}")
+
 
                 # --- Senha ---
                 senha = getpass.getpass("\nSenha do Sigeduc (para Gravar): ")

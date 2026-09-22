@@ -353,7 +353,7 @@ def ler_nomes(caminho_arquivo: str) -> list[str]:
 
 
 def _ler_nomes_texto(caminho_arquivo: str) -> list[str]:
-    """Lê nomes do arquivo CSV/TXT (1ª coluna de cada linha)."""
+    """Lê nomes do arquivo CSV/TXT (detecta automaticamente se a primeira coluna é número de chamada)."""
     nomes = []
 
     # Tenta ler com diferentes codificações (comum CSV do Excel vir como latin-1)
@@ -371,24 +371,51 @@ def _ler_nomes_texto(caminho_arquivo: str) -> list[str]:
         linha = linha.strip()
         if not linha:
             continue
-        # Pega a primeira coluna (antes de vírgula ou ponto-e-vírgula)
-        nome = linha.split(",")[0].split(";")[0].strip().upper()
-        if len(nome) > 1:
-            nomes.append(nome)
+        # Divide por vírgula, ponto-e-vírgula ou tab
+        partes = [p.strip().upper() for p in re.split(r"[,;|\t]", linha) if p.strip()]
+        if partes:
+            # Se a 1ª coluna for só número de chamada (ex: "1", "02"), pega a 2ª coluna
+            if partes[0].isdigit() and len(partes) > 1:
+                nome = partes[1]
+            else:
+                nome = partes[0]
+            if len(nome) > 1 and any(c.isalpha() for c in nome):
+                nomes.append(nome)
 
     return nomes
 
 
 def _ler_nomes_xlsx(caminho_arquivo: str) -> list[str]:
-    """Lê nomes da coluna A de um arquivo XLSX (a partir da linha 2)."""
+    """Lê nomes da coluna A (ou B se a coluna A for apenas número de chamada) de um arquivo XLSX."""
     nomes = []
     wb = openpyxl.load_workbook(caminho_arquivo, data_only=True)
     try:
         planilha = wb.active
-        for linha in planilha.iter_rows(min_row=2, max_col=1, values_only=True):
-            if linha and linha[0]:
-                nome = str(linha[0]).strip().upper()
-                if len(nome) > 1:
+        col_idx = 0
+        
+        # Inspeciona as primeiras linhas para verificar se a Coluna A é número de chamada (1, 2, 3...)
+        linhas_amostra = list(planilha.iter_rows(min_row=1, max_row=10, max_col=3, values_only=True))
+        cont_nomes_col0 = 0
+        cont_nomes_col1 = 0
+        for l in linhas_amostra[1:]:  # pula cabeçalho
+            if l:
+                v0 = str(l[0]).strip() if len(l) > 0 and l[0] is not None else ""
+                v1 = str(l[1]).strip() if len(l) > 1 and l[1] is not None else ""
+                if any(c.isalpha() for c in v0) and len(v0.split()) >= 2:
+                    cont_nomes_col0 += 1
+                if any(c.isalpha() for c in v1) and len(v1.split()) >= 2:
+                    cont_nomes_col1 += 1
+
+        if cont_nomes_col1 > cont_nomes_col0:
+            col_idx = 1
+            logger.info("  ✓ Nomes dos alunos identificados na Coluna B do Excel.")
+        else:
+            col_idx = 0
+
+        for linha in planilha.iter_rows(min_row=2, max_col=col_idx + 1, values_only=True):
+            if linha and len(linha) > col_idx and linha[col_idx]:
+                nome = str(linha[col_idx]).strip().upper()
+                if len(nome) > 1 and any(c.isalpha() for c in nome):
                     nomes.append(nome)
     finally:
         wb.close()
@@ -524,12 +551,18 @@ def ler_notas_xlsx(caminho_arquivo: str, letras_colunas: list[str], formato: str
 # Parsing e Validação de Datas (#7)
 # =============================================
 def parsear_datas(texto_datas: str) -> list[tuple[int, int]]:
-    """Converte '11/03, 18/03, 01/04' em [(11,3), (18,3), (1,4)] com validação real."""
-    datas = []
+    """
+    Converte texto com datas (ex: '11/03, 18/03; 01/04') em [(11, 3), (18, 3), (1, 4)].
+    Suporta múltiplos separadores (vírgula, ponto-e-vírgula, quebras de linha e espaços),
+    valida se o dia/mês existem no calendário e ordena cronologicamente sem repetição.
+    """
+    datas_encontradas = []
     ano_atual = datetime.date.today().year
 
-    for parte in texto_datas.split(","):
-        parte = parte.strip()
+    # Divide por vírgula, ponto e vírgula, quebras de linha ou múltiplos espaços
+    partes = [p.strip() for p in re.split(r"[,;\s\n\r]+", texto_datas.strip()) if p.strip()]
+
+    for parte in partes:
         if "/" not in parte:
             continue
         pedacos = parte.split("/")
@@ -537,12 +570,17 @@ def parsear_datas(texto_datas: str) -> list[tuple[int, int]]:
             continue
         try:
             d, m = int(pedacos[0]), int(pedacos[1])
-            # Valida se a data é real
+            # Valida se a data é real no calendário gregoriano
             datetime.date(ano_atual, m, d)
-            datas.append((d, m))
+            if (d, m) not in datas_encontradas:
+                datas_encontradas.append((d, m))
         except (ValueError, IndexError):
             logger.warning(f"  ⚠ Data inválida ignorada: {parte}")
-    return datas
+
+    # Ordena cronologicamente por mês e dia
+    datas_ordenadas = sorted(datas_encontradas, key=lambda x: (x[1], x[0]))
+    return datas_ordenadas
+
 
 
 # =============================================
@@ -615,57 +653,65 @@ def aguardar_pos_gravacao(page):
 def e_tabela_calendario(tabela) -> bool:
     """Verifica se uma tabela possui características de um calendário mensal."""
     try:
-        texto = (tabela.inner_text() or "").upper()
-        dias_semana = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"]
+        texto = normalizar_nome(tabela.inner_text() or "")
+        dias_semana = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"]
         contador_dias = sum(1 for d in dias_semana if d in texto)
         if contador_dias >= 4:
             links = tabela.query_selector_all("a")
-            if len(links) > 5:
+            if len(links) >= 5:
                 return True
     except Exception:
         pass
     return False
 
 
-def garantir_pagina_calendario(page):
-    """Verifica se estamos na página do calendário e navega se necessário."""
+def garantir_pagina_calendario(page) -> bool:
+    """
+    Verifica se estamos na página do calendário e navega de volta de forma segura e não destrutiva.
+    Evita page.goto(URL_FREQUENCIA) que desloga ou sai da turma ativa.
+    """
     try:
         page.wait_for_load_state("networkidle", timeout=5000)
     except PWTimeout:
         pass
 
-    conteudo = obter_conteudo_seguro(page)
-    if "Calendário" in conteudo:
-        for tab in page.query_selector_all("table"):
-            if e_tabela_calendario(tab):
-                return True
-
-    logger.info("  ⚠ Não estamos no calendário. Navegando de volta...")
-
-    links = page.query_selector_all("a")
-    for link in links:
-        try:
-            texto = link.inner_text().upper()
-        except Exception:
-            continue
-        if "VOLTAR" in texto or "FREQUÊNCIA" in texto:
-            link.click()
-            time.sleep(ESPERA_CARREGAMENTO)
-            try:
-                page.wait_for_load_state("networkidle", timeout=TIMEOUT_TABELA)
-            except PWTimeout:
-                pass
-            for tab in page.query_selector_all("table"):
-                if e_tabela_calendario(tab):
-                    return True
-
-    logger.info("  Navegando para a URL do portal...")
-    page.goto(URL_FREQUENCIA, wait_until="networkidle", timeout=TIMEOUT_PAGINA // 2)
-    time.sleep(ESPERA_CARREGAMENTO)
-
+    # 1. Verifica se já está em uma página contendo calendário mensal
     for tab in page.query_selector_all("table"):
         if e_tabela_calendario(tab):
             return True
+
+    logger.info("  ⚠ Calendário não visível. Procurando botão de retorno...")
+
+    # 2. Procura botões, links ou inputs de retorno ao diário / frequência
+    elementos = page.query_selector_all("input[type='button'], input[type='submit'], button, a")
+    for el in elementos:
+        try:
+            val = normalizar_nome(el.get_attribute("value") or el.inner_text() or "")
+        except Exception:
+            continue
+        if any(term in val for term in ["VOLTAR", "RETORNAR", "CALENDARIO", "DIARIO DE CLASSE"]):
+            try:
+                el.click()
+                time.sleep(ESPERA_CARREGAMENTO)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=TIMEOUT_TABELA)
+                except PWTimeout:
+                    pass
+                for tab in page.query_selector_all("table"):
+                    if e_tabela_calendario(tab):
+                        return True
+            except Exception:
+                pass
+
+    # 3. Tenta voltar no histórico do navegador se o formulário permitir
+    try:
+        page.go_back(wait_until="networkidle", timeout=5000)
+        time.sleep(ESPERA_CARREGAMENTO)
+        for tab in page.query_selector_all("table"):
+            if e_tabela_calendario(tab):
+                return True
+    except Exception:
+        pass
 
     return False
 
@@ -673,29 +719,33 @@ def garantir_pagina_calendario(page):
 def encontrar_dia_no_calendario(page, dia: int, mes: int) -> bool:
     """Encontra e clica no dia correto dentro do mês correto no calendário."""
     nome_mes = MESES[mes - 1]
-    logger.info(f"  Procurando dia {dia} no mês de {nome_mes}...")
+    nome_mes_norm = normalizar_nome(nome_mes)
+    logger.info(f"  Procurando dia {dia:02d} no mês de {nome_mes}...")
 
     tabelas = page.query_selector_all("table")
     for tabela in tabelas:
         try:
-            texto_tabela = tabela.inner_text()
+            texto_tabela = normalizar_nome(tabela.inner_text() or "")
         except Exception:
             continue
-        if nome_mes not in texto_tabela:
+        if nome_mes_norm not in texto_tabela:
             continue
 
         links = tabela.query_selector_all("a")
         for link in links:
             try:
-                if link.inner_text().strip() == str(dia):
-                    logger.info(f"  ✓ Dia {dia} encontrado e clicável. Clicando...")
+                txt_link = link.inner_text().strip()
+                # Aceita tanto formato simples '5' quanto formatado com zero à esquerda '05'
+                if txt_link in (str(dia), f"{dia:02d}"):
+                    logger.info(f"  ✓ Dia {dia:02d} encontrado e clicável. Clicando...")
                     link.click()
                     return True
             except Exception:
                 continue
 
-    logger.warning(f"  ✗ Dia {dia} de {nome_mes} não é clicável no calendário.")
+    logger.warning(f"  ✗ Dia {dia:02d} de {nome_mes} não é clicável no calendário.")
     return False
+
 
 
 # =============================================
@@ -795,6 +845,15 @@ def marcar_presencas(page, nomes: list[str], modo: str) -> int:
                         except Exception:
                             pass
                     marcados += 1
+
+            elif modo == "5":
+                # 100% Presentes: Garante presença para todos (desmarca checkboxes de falta habilitados)
+                for cb in habilitados:
+                    try:
+                        if cb.is_checked(): cb.click(timeout=TIMEOUT_CLICK)
+                    except Exception:
+                        pass
+                marcados += 1
 
     return marcados
 
