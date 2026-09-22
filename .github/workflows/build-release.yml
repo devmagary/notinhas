@@ -1,0 +1,88 @@
+name: Build Windows executable and release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to publish (e.g. v1.0.0). If empty, release creation is skipped."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || github.event.inputs.release_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Install Playwright Chromium
+        shell: pwsh
+        run: |
+          python -m playwright install chromium
+
+      - name: Build executable
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name Notinhas --icon icon.ico sigeduc_gui.py
+
+      - name: Validate generated executable
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/Notinhas.exe")) {
+            throw "dist/Notinhas.exe was not generated."
+          }
+          $size = (Get-Item "dist/Notinhas.exe").Length
+          if ($size -le 0) {
+            throw "dist/Notinhas.exe is empty."
+          }
+          Write-Host "Executable generated successfully: $size bytes"
+
+      - name: Archive executable
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist/Notinhas.exe" -DestinationPath "Notinhas-Windows.zip" -Force
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notinhas-Windows
+          path: Notinhas-Windows.zip
+
+      - name: Create GitHub Release
+        if: env.RELEASE_TAG != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          files: Notinhas-Windows.zip
+
+      - name: Manual run without tag
+        if: github.event_name == 'workflow_dispatch' && env.RELEASE_TAG == ''
+        shell: pwsh
+        run: |
+          Write-Host "No release_tag was provided in workflow_dispatch; skipping GitHub Release creation."
+
+# Note:
+# Playwright browser binaries are installed on the runner to support packaging/validation,
+# but they are not bundled inside Notinhas.exe by this workflow.
