@@ -266,14 +266,26 @@ class SigeducScraper:
         return False
 
     def navegar_diario_classe(self) -> bool:
-        """Navega para a tela principal de turmas / Diário de Classe Digital."""
+        """Navega para a tela principal de turmas / Diário de Classe Digital de forma segura para o JSF."""
         logger.info("Navegando para o Diário de Classe Digital...")
         
         # 1. Se já está na página do docente com turmas visíveis
         if self._tem_tabela_turmas():
             return True
 
-        # 2. Procura pelo link do menu "Diário de Classe" ou "Diário de Classe Digital"
+        # 2. Tenta a rota oficial do Struts/JSF que não quebra o ViewState
+        try:
+            link_menu = self.page.query_selector("a:has-text('Menu Professor'), a[href*='verPortalDocente.do']")
+            if link_menu:
+                link_menu.click()
+                time.sleep(sc.ESPERA_CARREGAMENTO)
+                self.page.wait_for_load_state("domcontentloaded", timeout=12000)
+                if self._tem_tabela_turmas():
+                    return True
+        except Exception:
+            pass
+
+        # 3. Procura pelo link do menu "Diário de Classe" ou "Diário de Classe Digital"
         links = self.page.query_selector_all("a")
         for link in links:
             try:
@@ -287,7 +299,7 @@ class SigeducScraper:
             except Exception:
                 continue
 
-        # 3. Fallback: navega para a URL do portal docente
+        # 4. Fallback: navega para a URL do portal docente
         self.page.goto(sc.URL_FREQUENCIA, wait_until="domcontentloaded", timeout=sc.TIMEOUT_PAGINA)
         time.sleep(sc.ESPERA_CARREGAMENTO)
         return self._tem_tabela_turmas()
@@ -341,14 +353,22 @@ class SigeducScraper:
                         alt = (acao.get_attribute("alt") or "").upper()
                         txt_acao = acao.inner_text().strip().upper()
                         onclick = (acao.get_attribute("onclick") or "").upper()
-                        tudo = f"{title} {alt} {txt_acao} {onclick}"
+                        
+                        # Inspeciona também a tag <img> filha (padrão real do SIGEduc JSF)
+                        img = acao.query_selector("img")
+                        img_title = (img.get_attribute("title") or "").upper() if img else ""
+                        img_alt = (img.get_attribute("alt") or "").upper() if img else ""
+                        img_src = (img.get_attribute("src") or "").upper() if img else ""
+                        
+                        tudo = f"{title} {alt} {txt_acao} {onclick} {img_title} {img_alt} {img_src}"
 
-                        if any(k in tudo for k in ["RESULTADO", "NOTA", "AVALIA", "BOLETIM"]):
+                        if any(k in tudo for k in ["NOTAS_LANCAR", "RESULTADO", "NOTA", "AVALIA", "BOLETIM"]):
                             btn_notas = acao
-                        elif any(k in tudo for k in ["FREQUENCIA", "CHAMADA", "PRESENCA", "CALENDARIO"]):
+                        elif any(k in tudo for k in ["FREQUENCIA_LANCAR", "FREQUENCIA", "CHAMADA", "PRESENCA", "CALENDARIO"]):
                             btn_freq = acao
                     except Exception:
                         continue
+
 
                 # Extrai dados das colunas
                 textos_tds = [td.inner_text().strip() for td in tds]
@@ -434,33 +454,70 @@ class SigeducScraper:
 
         resultado_unidades: dict[int, pd.DataFrame] = {}
 
+        # Mapeamento dos seletores diretos de cada tabela de unidade no DOM do SIGEduc
+        seletores_tabelas_unidade = {
+            1: [
+                "table[id='formulario:result']", 
+                "table[id*=':result']:not([id*='resultj']):not([id*='resultadoFinal'])",
+                "#formulario\\:result",
+                "#formulario\\:tab1 table"
+            ],
+            2: [
+                "table[id='formulario:resultj_id_1']", 
+                "table[id*=':resultj_id_1']",
+                "#formulario\\:resultj_id_1",
+                "#formulario\\:tab1j_id_1 table"
+            ],
+            3: [
+                "table[id='formulario:resultj_id_2']", 
+                "table[id*=':resultj_id_2']",
+                "#formulario\\:resultj_id_2",
+                "#formulario\\:tab1j_id_2 table"
+            ],
+            4: [
+                "table[id='formulario:resultadoFinal']", 
+                "table[id*='resultadoFinal']",
+                "#formulario\\:resultadoFinal",
+                "#formulario\\:resF table"
+            ]
+        }
+
         for unidade in unidades:
             logger.info(f"  Acessando {unidade}ª Unidade...")
-            sucesso_aba = sc.garantir_unidade_ativa(self.page, unidade)
-            if not sucesso_aba:
-                logger.warning(f"  ⚠ Não foi possível confirmar a aba da {unidade}ª Unidade.")
-
-            time.sleep(1)
-
-            # Localiza a tabela principal de notas
+            
+            # Tenta localizar diretamente a tabela da unidade no DOM
             tabela_notas = None
-            for tab in self.page.query_selector_all("table"):
-                txt = sc.normalizar_nome(tab.inner_text() or "")
-                if "ALUNO" in txt or "MATRICULA" in txt or "ESTUDANTE" in txt:
-                    tabela_notas = tab
+            for sel in seletores_tabelas_unidade.get(unidade, []):
+                tabela_notas = self.page.query_selector(sel)
+                if tabela_notas:
                     break
+
+            # Se não encontrou pelo seletor direto, ativa a aba via RichFaces
+            if not tabela_notas:
+                sc.garantir_unidade_ativa(self.page, unidade)
+                time.sleep(1)
+                for tab in self.page.query_selector_all("table"):
+                    txt = sc.normalizar_nome(tab.inner_text() or "")
+                    if "ALUNO" in txt or "MATRICULA" in txt or "ESTUDANTE" in txt:
+                        tabela_notas = tab
+                        break
 
             if not tabela_notas:
                 logger.warning(f"  Tabela de notas não localizada para a {unidade}ª Unidade.")
                 continue
 
-            # Mapeia os cabeçalhos das atividades avaliativas
+            # Mapeia os cabeçalhos das atividades avaliativas (removendo popups de tooltips)
             cabecalhos_cols = ["Nº", "Matrícula", "Nome do Estudante"]
             th_elementos = tabela_notas.query_selector_all("thead th, tr:first-child th, tr:first-child td")
             
             atividades_encontradas = []
             for th in th_elementos:
-                txt_th = th.inner_text().strip()
+                try:
+                    # Remove popups de aviso/tooltip antes de extrair o texto
+                    txt_th = th.evaluate("el => { const c = el.cloneNode(true); c.querySelectorAll('.popUp, span[style*=\"absolute\"]').forEach(e => e.remove()); return c.innerText; }").strip()
+                except Exception:
+                    txt_th = th.inner_text().strip()
+
                 txt_norm = sc.normalizar_nome(txt_th)
                 if any(ign in txt_norm for ign in ["FOTO", "NUMERO", "MATRICULA", "ALUNO", "NOME", "ACOES", "SITUACAO"]):
                     continue
@@ -468,7 +525,6 @@ class SigeducScraper:
                     atividades_encontradas.append(txt_th.replace("\n", " "))
 
             if not atividades_encontradas:
-                # Nomes padrão caso o cabeçalho seja genérico
                 atividades_encontradas = ["Atividade 1", "Atividade 2", "Simulado", "Média"]
 
             colunas_finais = cabecalhos_cols + atividades_encontradas
@@ -493,24 +549,38 @@ class SigeducScraper:
                         matricula = txt_td
                         break
 
-                # Extrai inputs de notas ou células de notas
-                inputs_nota = linha.query_selector_all("input[type='text'], input:not([type='hidden']):not([type='checkbox'])")
+                # 1. Inputs de avaliações regulares/FV
+                inputs_av = linha.query_selector_all("input.avaliacao, input[id*=':av__']")
+                # 2. Input de recuperação
+                inputs_rec = linha.query_selector_all("input[id*=':nuREC__']")
+                # 3. Input de total da unidade
+                inputs_tot = linha.query_selector_all("input[id*=':nu__']")
+
                 valores_notas = []
-
-                if inputs_nota:
-                    for inp in inputs_nota:
-                        val = inp.get_attribute("value") or ""
-                        val = val.strip()
-                        # Formata ou mantém
-                        valores_notas.append(val if val else "-")
+                if inputs_av or inputs_rec or inputs_tot:
+                    for inp in inputs_av:
+                        v = inp.get_attribute("value") or ""
+                        valores_notas.append(v.strip() if v.strip() else "-")
+                    for inp in inputs_rec:
+                        v = inp.get_attribute("value") or ""
+                        valores_notas.append(v.strip() if v.strip() else "-")
+                    for inp in inputs_tot:
+                        v = inp.get_attribute("value") or ""
+                        valores_notas.append(v.strip() if v.strip() else "-")
                 else:
-                    # Se não há inputs editáveis, lê as células das notas diretamente
-                    for td in tds[2:]:
-                        val = td.inner_text().strip()
-                        if val and not any(k in val.upper() for k in ["EDITAR", "SALVAR"]):
-                            valores_notas.append(val)
+                    # Fallback para inputs genéricos ou células
+                    inputs_genericos = linha.query_selector_all("input[type='text'], input:not([type='hidden']):not([type='checkbox'])")
+                    if inputs_genericos:
+                        for inp in inputs_genericos:
+                            v = inp.get_attribute("value") or ""
+                            valores_notas.append(v.strip() if v.strip() else "-")
+                    else:
+                        for td in tds[2:]:
+                            val = td.inner_text().strip()
+                            if val and not any(k in val.upper() for k in ["EDITAR", "SALVAR"]):
+                                valores_notas.append(val)
 
-                # Normaliza o tamanho da lista de notas para caber nas colunas
+                # Normaliza tamanho da lista para o número de colunas encontradas
                 qtd_esperada = len(atividades_encontradas)
                 while len(valores_notas) < qtd_esperada:
                     valores_notas.append("-")
@@ -522,6 +592,7 @@ class SigeducScraper:
             df_unidade = pd.DataFrame(registros, columns=colunas_finais)
             resultado_unidades[unidade] = df_unidade
             logger.info(f"  ✓ {len(registros)} alunos extraídos na {unidade}ª Unidade.")
+
 
         return resultado_unidades
 

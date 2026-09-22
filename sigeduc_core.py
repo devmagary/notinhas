@@ -658,11 +658,12 @@ def e_tabela_calendario(tabela) -> bool:
         contador_dias = sum(1 for d in dias_semana if d in texto)
         if contador_dias >= 4:
             links = tabela.query_selector_all("a")
-            if len(links) >= 5:
+            if len(links) >= 1:
                 return True
     except Exception:
         pass
     return False
+
 
 
 def garantir_pagina_calendario(page) -> bool:
