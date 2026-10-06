@@ -105,3 +105,25 @@ python sigeduc_scraper.py --headless --modo=todos --saida=relatorio_completo.xls
 ## Licença
 
 Este projeto é de uso livre para fins educacionais e apoio à atividade docente.
+
+---
+
+## Build Windows e Release automática (GitHub Actions)
+
+O repositório inclui o workflow `.github/workflows/build-release.yml` para gerar `Notinhas.exe` com PyInstaller no `windows-latest`, compactar em `Notinhas-Windows.zip` e publicar em GitHub Release.
+
+- **Disparo principal (recomendado):** push de tag `v*` (ex.: `v1.0.0`).
+- **Disparo manual:** `workflow_dispatch` (com input opcional `release_tag`).
+
+Publicação de versão por tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Se executar manualmente sem `release_tag`, o workflow continua o build e gera o artefato, mas não cria Release.
+
+### Limitação conhecida (Playwright)
+
+O workflow instala `chromium` via Playwright no runner para build/validação, porém os navegadores do Playwright **não são embutidos** automaticamente dentro de `Notinhas.exe`. Em ambientes de usuário final, pode ser necessário executar `playwright install chromium` para disponibilizar o navegador localmente.
