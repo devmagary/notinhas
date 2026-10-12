@@ -28,6 +28,12 @@ jobs:
       - name: Empacotar extensão para distribuição (.zip)
         run: node extensao-notas/scripts/empacotar.js
 
+      - name: Salvar artefato zip para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigeduc-extensao-zip
+          path: dist/*.zip
+
       - name: Anexar pacotes .zip na Release do GitHub
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
@@ -36,3 +42,4 @@ jobs:
             dist/sigeduc-extensao-*.zip
             dist/sigeduc-extensao.zip
           generate_release_notes: true
+
