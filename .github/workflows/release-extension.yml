@@ -1,0 +1,38 @@
+name: Empacotar e Publicar Extensão
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar código do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Executar testes da extensão
+        run: node extensao-notas/tests/test_extension.js
+
+      - name: Empacotar extensão para distribuição (.zip)
+        run: node extensao-notas/scripts/empacotar.js
+
+      - name: Anexar pacotes .zip na Release do GitHub
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/sigeduc-extensao-*.zip
+            dist/sigeduc-extensao.zip
+          generate_release_notes: true

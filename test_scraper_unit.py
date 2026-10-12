@@ -24,6 +24,11 @@ class TestSigeducScraper(unittest.TestCase):
         self.assertEqual(ss.extrair_turno("TURMA INTEGRAL"), "Int")
         self.assertEqual(ss.extrair_turno("1º B VESP"), "Vesp")
         self.assertEqual(ss.extrair_turno("2º A MAT"), "Mat")
+        # Códigos alfanuméricos comuns do SIGEduc BA
+        self.assertEqual(ss.extrair_turno("ADMVES1SA"), "Vesp")
+        self.assertEqual(ss.extrair_turno("SEGUMAT1SA"), "Mat")
+        self.assertEqual(ss.extrair_turno("AGRPMAT1SA"), "Mat")
+        self.assertEqual(ss.extrair_turno("ANACNOTM1A2"), "Not")
 
     def test_formatar_nome_aba(self):
         abas = set()
@@ -42,6 +47,15 @@ class TestSigeducScraper(unittest.TestCase):
         aba4 = ss.formatar_nome_aba("INFO 2", "INFORMÁTICA", "Freq", abas, turno="Vesp")
         self.assertEqual(aba4, "Info2_Vesp_Info_Freq")
         self.assertLessEqual(len(aba4), 31)
+
+        # Turmas com códigos alfanuméricos técnicos:
+        aba_tec1 = ss.formatar_nome_aba("SEGUMAT1SA", "EDUCAÇÃO FÍSICA", "U1", abas)
+        self.assertEqual(aba_tec1, "Segu1SA_Mat_EdFis_U1")
+        self.assertLessEqual(len(aba_tec1), 31)
+
+        aba_tec2 = ss.formatar_nome_aba("ADMVES1SA", "MATEMÁTICA", "U2", abas)
+        self.assertEqual(aba_tec2, "Adm1SA_Vesp_Mat_U2")
+        self.assertLessEqual(len(aba_tec2), 31)
 
         # Teste de caracteres proibidos [ ] : ? * / \
         aba_proibidos = ss.formatar_nome_aba("3º/A [Mat]:?", "História*Teste", "U1", abas)
@@ -140,6 +154,56 @@ class TestSigeducScraper(unittest.TestCase):
         wb.close()
         if os.path.exists(caminho_teste):
             os.remove(caminho_teste)
+
+    def test_esta_no_painel_docente_criterios(self):
+        """Valida que a tela de notas NUNCA é confundida com o painel de turmas."""
+        class MockElement:
+            def __init__(self, text="", is_checked_val=False):
+                self._text = text
+                self._is_checked = is_checked_val
+            def inner_text(self):
+                return self._text
+            def get_attribute(self, attr):
+                return ""
+            def is_visible(self):
+                return True
+
+        class MockPageNotes:
+            url = "https://sigeduc.educacao.ba.gov.br/sigeduc/portais/docente/docente.jsf"
+            def content(self):
+                return "<html><body>Diário de Classe Digital > LANÇAR NOTAS PARA AVALIAÇÕES DAS UNIDADES</body></html>"
+            def query_selector(self, sel):
+                # Simula presença do campo de nota ou tabela de resultado
+                if "av__" in sel or "result" in sel:
+                    return MockElement()
+                return None
+            def query_selector_all(self, sel):
+                if sel == "table":
+                    return [MockElement("Escola: Colégio Modelo Turma: ADMVES1SA Componente: HISTORIA 1ª SÉRIE")]
+                return []
+
+        class MockPageClassList:
+            url = "https://sigeduc.educacao.ba.gov.br/sigeduc/portais/docente/docente.jsf"
+            def content(self):
+                return "<html><body>Minhas Turmas: Turmas Regulares</body></html>"
+            def query_selector(self, sel):
+                if "notas_lancar" in sel or "frequencia_lancar" in sel:
+                    return MockElement()
+                return None
+            def query_selector_all(self, sel):
+                if sel == "table":
+                    return [MockElement("Ano Oferta Turma Componente Curricular Qtd. de Estudantes Ações")]
+                return []
+
+        scraper = ss.SigeducScraper(headless=True)
+        
+        # Teste 1: Na tela de notas, deve retornar estritamente FALSE
+        scraper.page = MockPageNotes()
+        self.assertFalse(scraper.esta_no_painel_docente(), "Tela de notas NÃO pode ser considerada painel docente!")
+
+        # Teste 2: Na tela de listagem de turmas, deve retornar TRUE
+        scraper.page = MockPageClassList()
+        self.assertTrue(scraper.esta_no_painel_docente(), "Lista de turmas deve ser reconhecida com sucesso!")
 
 
 if __name__ == "__main__":

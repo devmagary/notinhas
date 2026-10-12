@@ -42,3 +42,11 @@ scratch/
 
 # Pasta duplicada aninhada
 sigeduc-auto/
+
+# Projetos e pastas locais não relacionados ao SIGEduc
+.agents/
+escola-nfc-web/
+esp32-nfc-acesso/
+esp32s3-nfc-acesso/
+teste-compila-s3/
+dist/

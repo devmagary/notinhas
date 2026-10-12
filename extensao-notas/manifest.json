@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "SIGEduc Auto — Lançador de Notas",
+  "version": "1.0.5",
+  "description": "Preenchimento automatizado e seguro de notas avaliativas e faltas vinculadas no portal SIGEduc Bahia a partir de planilhas Excel.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "SIGEduc Auto — Lançador de Notas",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://sigeduc.educacao.ba.gov.br/*",
+        "*://*.educacao.ba.gov.br/*"
+      ],
+      "js": [
+        "lib/nomes.js",
+        "content/content.js"
+      ],
+      "css": [
+        "content/content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://sigeduc.educacao.ba.gov.br/*",
+    "*://*.educacao.ba.gov.br/*"
+  ]
+}

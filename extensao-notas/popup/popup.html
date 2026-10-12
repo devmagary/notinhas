@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGEduc Auto — Lançador de Notas</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="sgn-app">
+    <!-- Header Principal -->
+    <header class="sgn-header">
+      <div class="sgn-header-brand">
+        <span class="sgn-logo-icon">📊</span>
+        <div>
+          <h1>SIGEduc Auto</h1>
+          <span class="sgn-subtitle">Lançador de Notas & Falta Vinculada</span>
+        </div>
+      </div>
+      <button id="btn-recarregar-status" class="sgn-btn-icon" title="Verificar conexão com a página">🔄</button>
+    </header>
+
+    <!-- Barra de Navegação de Abas -->
+    <nav class="sgn-nav-tabs">
+      <button type="button" class="sgn-nav-btn active" id="tab-nav-lancamento" data-view="view-lancamento">
+        <span>📋 Lançamento</span>
+      </button>
+      <button type="button" class="sgn-nav-btn" id="tab-nav-logs" data-view="view-logs">
+        <span>📜 Logs & Diagnóstico</span>
+        <span id="badge-log-count" class="sgn-badge-pill" style="display: none;">0</span>
+      </button>
+    </nav>
+
+    <!-- =================================================================== -->
+    <!-- ABA 1: FLUXO DE LANÇAMENTO                                          -->
+    <!-- =================================================================== -->
+    <main id="view-lancamento" class="sgn-view active">
+      <!-- Status da Conexão com o SIGEduc -->
+      <div id="status-conexao" class="sgn-badge sgn-badge-aviso">
+        <span class="sgn-badge-dot"></span>
+        <span id="status-conexao-texto">Verificando página ativa...</span>
+      </div>
+
+      <!-- PASSO 1: Seleção do Arquivo Excel -->
+      <section class="sgn-card">
+        <div class="sgn-card-header">
+          <span class="sgn-step-num">1</span>
+          <h2>Planilha Excel (.xlsx)</h2>
+        </div>
+
+        <div id="drop-zone" class="sgn-drop-zone">
+          <input type="file" id="input-arquivo" accept=".xlsx, .xls" style="display: none;">
+          <span class="sgn-drop-icon">📁</span>
+          <div class="sgn-drop-text">
+            <strong>Clique para selecionar</strong> ou arraste o arquivo aqui
+          </div>
+          <div class="sgn-drop-hint">Planilha de notas da turma (.xlsx)</div>
+        </div>
+
+        <!-- Opção: Gerar e Baixar Planilha Modelo a partir da tela ativa -->
+        <div id="box-gerar-modelo" class="sgn-modelo-box" style="display: none;">
+          <div class="sgn-modelo-conteudo">
+            <span class="sgn-modelo-icon">📥</span>
+            <div class="sgn-modelo-texto">
+              <strong id="txt-modelo-titulo">Ainda não tem a planilha desta turma?</strong>
+              <span id="txt-modelo-desc">Gere um modelo Excel pronto com os estudantes e avaliações desta tela.</span>
+            </div>
+          </div>
+          <button type="button" id="btn-baixar-modelo" class="sgn-btn-outline" title="Baixa um modelo Excel com alunos e colunas prontas para preenchimento">
+            <span>✨ Baixar Planilha Modelo (.xlsx)</span>
+          </button>
+        </div>
+
+        <div id="arquivo-info" class="sgn-arquivo-info" style="display: none;">
+          <div class="sgn-arquivo-detalhes">
+            <span class="sgn-arquivo-nome" id="txt-nome-arquivo">turma_notas.xlsx</span>
+            <button id="btn-remover-arquivo" class="sgn-btn-link">Trocar</button>
+          </div>
+
+          <div class="sgn-grid-2">
+            <div class="sgn-field">
+              <label for="select-aba">Aba / Turma:</label>
+              <select id="select-aba" class="sgn-select"></select>
+            </div>
+            <div class="sgn-field">
+              <label for="select-col-nome">Coluna dos Nomes:</label>
+              <select id="select-col-nome" class="sgn-select"></select>
+            </div>
+          </div>
+
+          <div class="sgn-field">
+            <label for="input-colunas-notas">Colunas de Notas no Excel:</label>
+            <input type="text" id="input-colunas-notas" class="sgn-input" placeholder="Ex: B, C, D (na mesma ordem das avaliações)">
+            <small class="sgn-hint">Letras separadas por vírgula. Exemplo: <code>B, C, D</code> ou <code>C, D</code></small>
+          </div>
+
+          <!-- Mapeamento visual das colunas com as atividades do SIGEduc -->
+          <div id="box-mapeamento-colunas" class="sgn-mapeamento-box" style="display: none;">
+            <div id="alerta-divergencia-colunas" class="sgn-alerta-banner"></div>
+            <div class="sgn-mapeamento-grid" id="lista-mapeamento-colunas"></div>
+          </div>
+
+          <div class="sgn-field-inline">
+            <label>Formato Decimal:</label>
+            <div class="sgn-radios">
+              <label><input type="radio" name="formato-nota" value="ponto" checked> Ponto (7.5)</label>
+              <label><input type="radio" name="formato-nota" value="virgula"> Vírgula (7,5)</label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PASSO 2: Configuração da Unidade -->
+      <section class="sgn-card">
+        <div class="sgn-card-header">
+          <span class="sgn-step-num">2</span>
+          <h2>Unidade Avaliativa</h2>
+        </div>
+
+        <div class="sgn-segmented-buttons" id="segmented-unidade">
+          <button type="button" class="sgn-seg-btn active" data-unidade="1">1ª Unidade</button>
+          <button type="button" class="sgn-seg-btn" data-unidade="2">2ª Unidade</button>
+          <button type="button" class="sgn-seg-btn" data-unidade="3">3ª Unidade</button>
+          <button type="button" class="sgn-seg-btn" data-unidade="4">4ª Unidade</button>
+        </div>
+      </section>
+
+      <!-- PASSO 3: Pré-visualização & Conferência -->
+      <section class="sgn-card" id="card-preview" style="display: none;">
+        <div class="sgn-card-header">
+          <span class="sgn-step-num">3</span>
+          <h2>Conferência dos Estudantes</h2>
+        </div>
+
+        <div class="sgn-pills-resumo">
+          <div class="sgn-pill sgn-pill-verde">
+            <strong id="cnt-casados">0</strong> casados
+          </div>
+          <div class="sgn-pill sgn-pill-amarelo">
+            <strong id="cnt-sem-par-tela">0</strong> no SIGEduc
+          </div>
+          <div class="sgn-pill sgn-pill-azul">
+            <strong id="cnt-sem-par-excel">0</strong> na Planilha
+          </div>
+          <div class="sgn-pill sgn-pill-cinza">
+            <strong id="cnt-total-excel">0</strong> total
+          </div>
+        </div>
+
+        <!-- Seção de divergências de alunos (expansível) -->
+        <div id="box-alunos-divergentes" style="display: none; margin-bottom: 10px;">
+          <details class="sgn-details">
+            <summary>⚠️ Alunos sem correspondência (<span id="txt-qtd-divergentes">0</span>)</summary>
+            <div class="sgn-divergencias-content" id="lista-alunos-divergentes"></div>
+          </details>
+        </div>
+
+        <details class="sgn-details" open>
+          <summary>Visualizar lista de correspondências</summary>
+          <div class="sgn-tabela-scroll">
+            <table class="sgn-tabela-preview">
+              <thead>
+                <tr>
+                  <th>Estudante no SIGEduc</th>
+                  <th>Estudante na Planilha</th>
+                  <th>Notas Extraídas</th>
+                </tr>
+              </thead>
+              <tbody id="preview-tbody"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <!-- PASSO 4: Ações e Gravação -->
+      <section class="sgn-card">
+        <div class="sgn-card-header">
+          <span class="sgn-step-num">4</span>
+          <h2>Lançamento & Gravação</h2>
+        </div>
+
+        <div class="sgn-opcoes">
+          <label class="sgn-checkbox-label">
+            <input type="checkbox" id="chk-auto-fv" checked>
+            <span>Preencher Falta Vinculada (FV) automaticamente nas atividades sem nota</span>
+          </label>
+
+          <label class="sgn-checkbox-label">
+            <input type="checkbox" id="chk-auto-gravar">
+            <span>Gravar automaticamente com senha</span>
+          </label>
+
+          <div id="box-senha" class="sgn-field" style="display: none; margin-top: 8px;">
+            <label for="input-senha">Senha do SIGEduc:</label>
+            <input type="password" id="input-senha" class="sgn-input" placeholder="Digite sua senha de gravação">
+            <small class="sgn-hint">A senha é utilizada apenas na sessão atual e nunca gravada em disco.</small>
+          </div>
+
+          <div class="sgn-field-inline" style="margin-top: 8px;">
+            <label for="select-delay-cadencia">Cadência AJAX:</label>
+            <select id="select-delay-cadencia" class="sgn-select" style="max-width: 190px;">
+              <option value="150" selected>Padrão Seguro (150ms)</option>
+              <option value="120">Estável (120ms)</option>
+              <option value="200">Muito Lento (200ms)</option>
+              <option value="80">Moderado (80ms)</option>
+              <option value="60">Rápido (60ms)</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="btn-preencher" class="sgn-btn-primary" disabled>
+          <span>🚀 Preencher Notas no SIGEduc</span>
+        </button>
+
+        <button id="btn-preencher-fv" class="sgn-btn-secondary" style="display: none; margin-top: 8px;">
+          <span>☑️ Marcar Faltas Vinculadas (Tela de FV)</span>
+        </button>
+
+        <!-- Feedback de Progresso / Mensagem -->
+        <div id="mensagem-status" class="sgn-msg-box" style="display: none;"></div>
+      </section>
+    </main>
+
+    <!-- =================================================================== -->
+    <!-- ABA 2: LOGS & DIAGNÓSTICO                                           -->
+    <!-- =================================================================== -->
+    <main id="view-logs" class="sgn-view" style="display: none;">
+      <!-- Card de Diagnóstico do Sistema -->
+      <section class="sgn-card">
+        <div class="sgn-card-header">
+          <span class="sgn-step-num">🩺</span>
+          <h2>Diagnóstico do Ambiente</h2>
+        </div>
+
+        <div class="sgn-diag-grid">
+          <div class="sgn-diag-item">
+            <span class="sgn-diag-label">Aba do Navegador:</span>
+            <span class="sgn-diag-val" id="diag-aba-info">Identificando...</span>
+          </div>
+          <div class="sgn-diag-item">
+            <span class="sgn-diag-label">Content Script:</span>
+            <span class="sgn-diag-val" id="diag-script-status">🟡 Testando...</span>
+          </div>
+          <div class="sgn-diag-item">
+            <span class="sgn-diag-label">Tela Detectada:</span>
+            <span class="sgn-diag-val" id="diag-tela-detectada">-</span>
+          </div>
+          <div class="sgn-diag-item">
+            <span class="sgn-diag-label">Estudantes na Página:</span>
+            <span class="sgn-diag-val" id="diag-alunos-tela">0 encontrados</span>
+          </div>
+          <div class="sgn-diag-item">
+            <span class="sgn-diag-label">Planilha Excel:</span>
+            <span class="sgn-diag-val" id="diag-excel-info">Nenhuma carregada</span>
+          </div>
+          <div class="sgn-diag-item">
+            <span class="sgn-diag-label">Casamento Nomes:</span>
+            <span class="sgn-diag-val" id="diag-match-info">0 casados</span>
+          </div>
+        </div>
+
+        <div class="sgn-diag-actions">
+          <button type="button" id="btn-retestar-conexao" class="sgn-btn-secondary sgn-btn-sm">
+            🔄 Testar Conexão / Reinjetar Script
+          </button>
+          <button type="button" id="btn-recarregar-pagina-aba" class="sgn-btn-secondary sgn-btn-sm" title="Recarrega a aba atual do SIGEduc">
+            🌐 Recarregar Página
+          </button>
+        </div>
+      </section>
+
+      <!-- Card do Console de Logs -->
+      <section class="sgn-card">
+        <div class="sgn-card-header sgn-card-header-split">
+          <div class="sgn-header-left">
+            <span class="sgn-step-num">📜</span>
+            <h2>Console de Eventos</h2>
+          </div>
+          <div class="sgn-log-actions">
+            <button type="button" id="btn-copiar-logs" class="sgn-btn-link" title="Copiar histórico de logs">📋 Copiar</button>
+            <button type="button" id="btn-limpar-logs" class="sgn-btn-link" title="Limpar terminal de logs">🗑️ Limpar</button>
+          </div>
+        </div>
+
+        <!-- Filtros Rápidos -->
+        <div class="sgn-log-filters">
+          <button type="button" class="sgn-filter-pill active" data-filtro="todos">Todos</button>
+          <button type="button" class="sgn-filter-pill" data-filtro="erro">Erros</button>
+          <button type="button" class="sgn-filter-pill" data-filtro="aviso">Avisos</button>
+          <button type="button" class="sgn-filter-pill" data-filtro="sucesso">Sucessos</button>
+        </div>
+
+        <!-- Terminal de Logs -->
+        <div id="log-terminal" class="sgn-log-terminal">
+          <div class="sgn-log-empty">Nenhum evento registrado ainda.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Scripts locais da Extensão -->
+  <script src="../vendor/xlsx.full.min.js"></script>
+  <script src="../lib/nomes.js"></script>
+  <script src="../lib/excel.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

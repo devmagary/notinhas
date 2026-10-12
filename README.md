@@ -1,107 +1,149 @@
-# Sigeduc Auto
+# SIGEduc Auto 🎓📊
 
-Automação em Python desenvolvida para simplificar e agilizar a rotina de professores no portal SIGEduc (Rede Estadual da Bahia). O sistema automatiza o lançamento em lote de frequências (presenças e faltas) e notas avaliativas lendo diretamente de planilhas Excel (XLSX) ou arquivos de texto (CSV/TXT).
+> Automação inteligente, segura e simplificada para professores da **Rede Estadual da Bahia** no portal **SIGEduc**.
 
----
+<p align="center">
+  <a href="https://github.com/devmagary/notinhas/releases/latest/download/sigeduc-extensao.zip">
+    <img src="https://img.shields.io/badge/📥%20BAIXAR%20EXTENSÃO%20PRONTA%20(.ZIP)-CLIQUE%20AQUI-success?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Baixar Extensão Pronta" height="46">
+  </a>
+</p>
 
-## Funcionalidades
-
-- **Lançamento de Frequência em Massa:** Permite selecionar múltiplas datas via calendário interativo ou digitação para preenchimento sequencial das listas de chamada.
-- **Lançamento de Notas por Coluna:** Lê as notas de atividades (Simulado, Atividade 1, Atividade 2, etc.) na ordem indicada das colunas da planilha e preenche nos campos correspondentes do portal.
-- **Seleção e Troca Automática de Unidade:** Controle para definir a unidade avaliativa (1ª, 2ª, 3ª ou 4ª Unidade). O robô verifica o componente de abas do SIGEduc e comuta automaticamente para a unidade correta caso o portal reinicie na primeira.
-- **Atribuição de Falta Vinculada (FV):** Identifica notas em branco ou registros de ausência e marca as checkboxes de Falta Vinculada na tela de verificação de avaliações não realizadas.
-- **Desambiguação Avançada de Nomes:** Sistema de correspondência com normalização Unicode (remoção de acentos e cedilha), tratamento fonético e verificação estrita de sobrenomes de família. Evita duplicações ou trocas de notas entre estudantes com prenomes iguais (por exemplo, Maria Vitória Santos Lisboa vs. Maria Vitória Tosta do Amaral).
-- **Tratamento de Formato Decimal:** Suporte a notas com separador decimal por ponto (padrão do portal), vírgula ou formato original.
-- **Gravação com Confirmação de Senha:** Suporte ao preenchimento automatizado de senha no novo popup modal de confirmação do SIGEduc, com opção de modo manual para revisão prévia.
-- **Duas Opções de Interface:** Interface gráfica moderna (GUI) com acompanhamento de logs em tempo real e versão via terminal (CLI).
-
----
-
-## Estrutura do Projeto
-
-- `sigeduc_gui.py`: Interface gráfica para o usuário construída em CustomTkinter.
-- `sigeduc_core.py`: Motor de automação com Playwright, tratamento de DOM, normalização de nomes e lógica de navegação.
-- `sigeduc_scraper.py`: Módulo de web scraping para extração de dados acadêmicos (turmas, notas, atividades e frequência) e exportação em Excel estruturado.
-- `lancar_frequencia.py`: Interface interativa de linha de comando (CLI).
-- `requirements.txt`: Relação de dependências do projeto.
-- `exemplo_alunos.txt`: Arquivo modelo com lista de estudantes para testes de frequência.
-
+<p align="center">
+  <img src="https://img.shields.io/badge/extens%C3%A3o-v1.0.5-brightgreen?style=flat-square&logo=googlechrome" alt="Extensão v1.0.5">
+  <img src="https://img.shields.io/badge/navegadores-Chrome%20%7C%20Edge%20%7C%20Brave%20%7C%20Opera-blue?style=flat-square" alt="Navegadores">
+  <img src="https://img.shields.io/badge/python-3.8%2B-blue?style=flat-square&logo=python" alt="Python 3.8+">
+  <img src="https://img.shields.io/badge/dados-100%25%20locais%20(LGPD)-success?style=flat-square" alt="Privacidade LGPD">
+  <img src="https://img.shields.io/badge/licen%C3%A7a-Livre%20%2F%20Educacional-orange?style=flat-square" alt="Licença Livre">
+</p>
 
 ---
 
-## Requisitos e Instalação
+## 🧭 Escolha a Melhor Opção para a Sua Rotina
 
-Necessário **Python 3.8** ou superior instalado.
+O projeto oferece **três formas flexíveis de uso** para atender a diferentes perfis de professores e necessidades:
 
-1. Clone o repositório ou baixe os arquivos do projeto:
+| Comparativo | 🌐 Opção 1: Extensão Web (Recomendada) | 💻 Opção 2: App Desktop Python (GUI) | 🛠️ Opção 3: Terminal & Scraping (CLI) |
+|---|---|---|---|
+| **Para quem é?** | **95% dos professores no dia a dia** | Professores com chamadas acumuladas | Coordenação / Gestão de Dados |
+| **Precisa de Python?** | ❌ **Não! (Zero dependências)** | ✔️ Sim (Python 3.8+) | ✔️ Sim (Python 3.8+) |
+| **Ambiente de uso** | Direto no Chrome, Edge, Brave, Opera | Janela gráfica com CustomTkinter | Linha de comando / Terminal |
+| **Lançamento de Notas via Excel** | ✔️ **Sim (100% automático)** | ✔️ Sim | ❌ Apenas extração |
+| **Gera Modelo Excel em Branco** | ✔️ **Sim (Com fórmulas `=SOMA`)** | ❌ Não | ❌ Não |
+| **Falta Vinculada (FV)** | ✔️ **Sim (Alinhamento por coluna)** | ✔️ Sim | ❌ Apenas leitura |
+| **Lançamento de Frequência em Massa** | ⏳ Em desenvolvimento | ✔️ **Sim (Múltiplas datas por calendário)** | ✔️ Sim (`lancar_frequencia.py`) |
+| **Extração Geral de Turmas e Notas** | ❌ Não | ❌ Não | ✔️ **Sim (`sigeduc_scraper.py`)** |
+
+---
+
+## 🌐 Opção 1: Extensão para Navegador (Instalação em 1 Minuto)
+
+A extensão é a forma mais rápida de lançar notas: ela roda dentro do seu próprio navegador sem deslogar da sua conta e processa a planilha inteira localmente.
+
+### ⚡ Instalação Rápida (Windows):
+1. **[Clique aqui para Baixar a Extensão (`sigeduc-extensao.zip`)](https://github.com/devmagary/notinhas/releases/latest/download/sigeduc-extensao.zip)**.
+2. Extraia a pasta `.zip` no seu computador.
+3. Dê **duplo clique** no arquivo `instalar_extensao.bat`.
+4. O instalador copiará a extensão para uma pasta permanente e abrirá a tela de extensões do seu navegador:
+   - **Google Chrome:** `chrome://extensions`
+   - **Microsoft Edge:** `edge://extensions`
+   - **Brave Browser:** `brave://extensions`
+   - **Opera / Opera GX:** `opera://extensions`
+5. No navegador, ative a chave **"Modo do desenvolvedor"** (canto superior direito), clique em **"Carregar sem compactação"** e selecione a pasta da extensão!
+
+> 💡 **Dica:** Clique no ícone de "Quebra-cabeça" na barra superior do navegador e fixe o **SIGEduc Auto** para acesso imediato.
+
+### 🎯 Principais Recursos da Extensão:
+- **Geração de Planilha Modelo em Branco (`.xlsx`):** Não tem planilha pronta? Entre na tela de notas com as avaliações criadas, abra a extensão e clique em **"Baixar Planilha Modelo"**. Ela baixa um Excel já formatado com o nome de todos os alunos e com a fórmula de soma nativa do Excel (`=SOMA(B2:D2)`).
+- **Leitura Inteligente de Excel:** Arraste qualquer planilha com 1, 2, 3, 4 ou mais atividades. Detecta nomes e colunas automaticamente.
+- **Tolerância Fonética de Nomes:** Reconhece alunos mesmo com acentos, cedilhas ou grafias diferentes (*Rebouças* vs *Reboucas*, *Luiz* vs *Luis*) sem jamais misturar alunos com mesmo prenome.
+- **Falta Vinculada (FV) Automática:** Marca as checkboxes de FV estritamente para alunos ausentes na planilha.
+
+---
+
+## 💻 Opção 2: Aplicativo Desktop em Python (Interface Gráfica)
+
+Ideal para professores que precisam realizar o **lançamento de frequência/chamada em lote** em múltiplas datas retroativas.
+
+### Requisitos:
+- **Python 3.8** ou superior instalado.
+
+### Passo a Passo:
+1. Clone este repositório ou baixe o código-fonte:
    ```bash
    git clone https://github.com/devmagary/notinhas.git
    cd notinhas
    ```
-
-2. Instale as dependências listadas:
+2. Instale as dependências:
    ```bash
    pip install -r requirements.txt
-   ```
-
-3. Instale os navegadores do Playwright (se for a primeira utilização do Playwright na máquina):
-   ```bash
    playwright install chromium
    ```
+3. Inicie o aplicativo:
+   ```bash
+   python sigeduc_gui.py
+   ```
+4. Na interface gráfica:
+   - Escolha **Lançar Frequência** (selecionando as datas no calendário interativo) ou **Lançar Notas**.
+   - Acompanhe a execução e os logs em tempo real na tela.
 
 ---
 
-## Como Executar
+## 🛠️ Opção 3: Linha de Comando e Scraping Acadêmico
 
-### Interface Gráfica (Recomendado)
+Para desenvolvedores ou relatórios completos de turmas:
 
-Execute o comando no terminal:
-```bash
-python sigeduc_gui.py
-```
-
-Passo a passo na interface:
-1. Escolha a tarefa desejada: **Lançar Frequência** ou **Lançar Notas**.
-2. Selecione o arquivo de dados (`.xlsx`, `.csv` ou `.txt`).
-3. Para notas: informe as letras das colunas da planilha na mesma ordem da tela do SIGEduc (exemplo: `D, B, C`), selecione a **Unidade Avaliativa** e a opção de **Falta Vinculada (FV)**.
-4. Para frequência: selecione as datas desejadas no calendário.
-5. Marque a opção de gravação automática e informe a senha do portal (opcional).
-6. Clique em **Iniciar Automação** e acompanhe a execução na janela do navegador e no painel de logs.
-
-### Linha de Comando (CLI)
-
-Para operar diretamente pelo terminal sem interface gráfica:
+### Lançamento de Frequência via CLI:
 ```bash
 python lancar_frequencia.py
 ```
 
-### Extração de Dados Acadêmicos para Excel (Scraping)
-
-Para extrair as notas, atividades, faltas vinculadas e histórico de frequência de todas as turmas e gerar uma planilha Excel `.xlsx` multi-aba formatada:
+### Extração Geral de Dados Acadêmicos para Excel:
+Extrai notas, faltas vinculadas e histórico de frequência de todas as turmas cadastradas para um relatório consolidado `.xlsx`:
 
 ```bash
-# Execução interativa (pergunta interativamente o modo: Notas, Frequência ou Ambos, e credenciais seguras)
+# Execução interativa:
 python sigeduc_scraper.py
 
-# Apenas notas e resultados
-python sigeduc_scraper.py --modo=notas --saida=notas_gerais.xlsx
+# Apenas notas de todas as turmas:
+python sigeduc_scraper.py --modo=notas --saida=todas_notas.xlsx
 
-# Apenas histórico de frequência
-python sigeduc_scraper.py --modo=frequencia --saida=frequencia_geral.xlsx
-
-# Execução completa em background (silenciosa)
-python sigeduc_scraper.py --headless --modo=todos --saida=relatorio_completo.xlsx
+# Modo silencioso em segundo plano:
+python sigeduc_scraper.py --headless --modo=todos --saida=relatorio_geral.xlsx
 ```
 
 ---
 
-## Segurança e Privacidade
+## 📁 Estrutura do Repositório
 
-- **Senhas:** A senha informada é utilizada exclusivamente em memória no momento da gravação no portal e não é gravada em arquivos locais nem enviada a servidores externos.
-- **Proteção de Dados (LGPD):** O arquivo `.gitignore` vem configurado para ignorar planilhas reais de notas (`*.xlsx`, `*.csv`), logs locais e pastas de perfis de sessão do navegador (`perfil_navegador/`), impedindo a submissão acidental de dados pessoais de estudantes a repositórios públicos.
+```
+notinhas/
+├── extensao-notas/             # 🌐 Extensão para navegadores Chromium (Manifest V3)
+│   ├── manifest.json           # Configuração da extensão (v1.0.5)
+│   ├── instalar_extensao.bat   # Instalador rápido de 1 clique para Windows
+│   ├── content/                # Scripts injetados no SIGEduc (DOM & RichFaces)
+│   ├── lib/                    # Algoritmos de casamento de nomes e leitura Excel
+│   ├── popup/                  # Interface visual do popup da extensão
+│   ├── scripts/                # Script de empacotamento para distribuição
+│   ├── tests/                  # Suíte completa de testes automatizados (25 testes)
+│   └── vendor/                 # Biblioteca SheetJS (XLSX) empacotada
+├── sigeduc_gui.py              # 💻 Interface Gráfica Desktop em CustomTkinter
+├── sigeduc_core.py             # Motor de automação Playwright para desktop
+├── sigeduc_scraper.py          # Extrator e web scraper acadêmico para Excel
+├── lancar_frequencia.py        # Interface CLI para chamada
+├── requirements.txt            # Dependências Python do projeto
+└── README.md                   # Este manual unificado
+```
 
 ---
 
-## Licença
+## 🔒 Segurança, Privacidade e LGPD
 
-Este projeto é de uso livre para fins educacionais e apoio à atividade docente.
+- **100% Processamento Local:** Nenhum dado de notas, frequência, nomes ou matrículas é enviado para servidores externos. Todo o processamento ocorre exclusivamente na memória do seu computador.
+- **Senhas:** Quando utilizada a gravação automática com senha, esta é manipulada unicamente em memória temporária para confirmação no portal e jamais é salva em disco.
+- **Privacidade por Padrão:** O arquivo `.gitignore` protege contra o envio acidental de arquivos `.xlsx`, `.csv` e logs locais com informações reais de estudantes ao repositório público.
+
+---
+
+## 📄 Licença
+
+Projeto desenvolvido para apoio e valorização da atividade docente na rede pública de ensino. Uso livre para fins educacionais.

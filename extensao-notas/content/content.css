@@ -1,0 +1,104 @@
+/*
+ * Estilos visuais injetados na pagina do SIGEduc pelo SIGEduc Auto
+ */
+
+/* Destaque para inputs preenchidos com sucesso */
+input.sgn-preenchido {
+  background-color: #ecfdf5 !important;
+  border: 2px solid #10b981 !important;
+  color: #065f46 !important;
+  font-weight: bold !important;
+  transition: all 0.3s ease;
+}
+
+/* Destaque para inputs com erro ou bloqueados */
+input.sgn-aviso {
+  background-color: #fffbeb !important;
+  border: 2px solid #f59e0b !important;
+  color: #92400e !important;
+}
+
+/* Linha da tabela casada com sucesso */
+tr.sgn-linha-casada {
+  background-color: rgba(16, 185, 129, 0.05) !important;
+}
+
+/* Linha da tabela sem correspondencia na planilha */
+tr.sgn-linha-sem-par {
+  background-color: rgba(245, 158, 11, 0.05) !important;
+}
+
+/* Floating Banner / Toast do SIGEduc Auto no topo da tela */
+#sgn-floating-toast {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 9999999;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  padding: 14px 18px;
+  max-width: 380px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  color: #1e293b;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  animation: sgnSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#sgn-floating-toast.sgn-sucesso {
+  border-left: 5px solid #10b981;
+}
+
+#sgn-floating-toast.sgn-aviso {
+  border-left: 5px solid #f59e0b;
+}
+
+#sgn-floating-toast.sgn-erro {
+  border-left: 5px solid #ef4444;
+}
+
+#sgn-floating-toast .sgn-toast-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+#sgn-floating-toast .sgn-toast-body {
+  flex: 1;
+}
+
+#sgn-floating-toast .sgn-toast-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 2px;
+  color: #0f172a;
+}
+
+#sgn-floating-toast .sgn-toast-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 0;
+  line-height: 1;
+}
+
+#sgn-floating-toast .sgn-toast-close:hover {
+  color: #475569;
+}
+
+@keyframes sgnSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-15px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

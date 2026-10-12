@@ -66,23 +66,51 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 # Funções de Sanitização para o Excel
 # =====================================================================
 def extrair_turno(texto: str) -> str:
-    """Extrai identificador conciso do turno (Mat, Vesp, Not, Int) de strings usando regex de fronteira."""
+    """
+    Extrai identificador conciso do turno (Mat, Vesp, Not, Int).
+    Suporta tanto palavras completas com fronteira de palavra quanto códigos de turma
+    alfanuméricos comuns no SIGEduc (ex: ADMVES1SA -> Vesp, AGRPMAT1SA -> Mat, NOT1A -> Not),
+    sem gerar falsos positivos para disciplinas como MATEMÁTICA ou INFORMÁTICA.
+    """
     t_up = str(texto or "").upper()
-    if re.search(r"\b(MATUTINO|MAT|MANHA)\b", t_up):
+
+    # 1. Busca por palavras completas ou abreviações delimitadas por fronteira
+    if re.search(r"\b(MATUTINO|MANHA)\b", t_up):
         return "Mat"
-    elif re.search(r"\b(VESPERTINO|VESP|VES|TARDE)\b", t_up):
+    elif re.search(r"\b(VESPERTINO|TARDE)\b", t_up):
         return "Vesp"
-    elif re.search(r"\b(NOTURNO|NOT|NOITE)\b", t_up):
+    elif re.search(r"\b(NOTURNO|NOITE)\b", t_up):
         return "Not"
-    elif re.search(r"\b(INTEGRAL|INT)\b", t_up):
+    elif re.search(r"\b(INTEGRAL)\b", t_up):
         return "Int"
+    elif re.search(r"\bMAT\b", t_up) and not re.search(r"\bMATEMAT", t_up):
+        return "Mat"
+    elif re.search(r"\b(VESP|VES)\b", t_up):
+        return "Vesp"
+    elif re.search(r"\bNOT\b", t_up):
+        return "Not"
+    elif re.search(r"\bINT\b", t_up):
+        return "Int"
+
+    # 2. Busca por códigos embutidos em siglas de turmas do SIGEduc:
+    # Ex: ADMVES1SA, SEGUMAT1SA, AGRPMAT1SA, ANACNOTM1A2
+    # Padrão: MAT/VES/VESP/NOT seguido de número de série (1 a 4) e letra da turma
+    if re.search(r"[A-Z0-9]*(?:VESP|VES)[0-9]", t_up):
+        return "Vesp"
+    if re.search(r"[A-Z0-9]*NOT[0-9M]", t_up):
+        return "Not"
+    if re.search(r"[A-Z0-9]*MAT[0-9]", t_up) and not re.search(r"MATEMAT", t_up):
+        return "Mat"
+    if re.search(r"[A-Z0-9]*INT[0-9]", t_up):
+        return "Int"
+
     return ""
 
 
 def formatar_nome_aba(turma: str, componente: str, sufixo: str, abas_existentes: set[str] | None = None, turno: str = "") -> str:
     """
     Gera um nome de aba válido para o Excel respeitando rigorosamente:
-    - Inclusão do nome da Turma e do Turno (ex: 3A_Mat_Hist_U1, 2B_Vesp_Mat_U2);
+    - Inclusão do nome da Turma e do Turno (ex: 3A_Mat_Hist_U1, 2B_Vesp_Mat_U2, Segu1SA_Mat_EdDig_U1);
     - Limite máximo de 31 caracteres;
     - Remoção dos caracteres proibidos: [ ] : ? * / \\
     - Prevenção de colisões com abas já existentes (adicionando sufixo _1, _2).
@@ -99,7 +127,8 @@ def formatar_nome_aba(turma: str, componente: str, sufixo: str, abas_existentes:
         "PORTUGUES": "Port", "GEOGRAFIA": "Geo", "CIENCIAS": "Cien",
         "INFORMATICA": "Info", "EDUCACAO FISICA": "EdFis", "BIOLOGIA": "Bio",
         "QUIMICA": "Quim", "FISICA": "Fis", "FILOSOFIA": "Filo",
-        "SOCIOLOGIA": "Socio", "ARTE": "Arte", "INGLES": "Ing", "ESPANHOL": "Esp"
+        "SOCIOLOGIA": "Socio", "ARTE": "Arte", "INGLES": "Ing", "ESPANHOL": "Esp",
+        "EDUCACAO DIGITAL": "EdDig", "SEGURANCA DO TRABALHO": "SegTrb"
     }
 
     comp_limpo = limpar_ascii(componente)
@@ -126,12 +155,18 @@ def formatar_nome_aba(turma: str, componente: str, sufixo: str, abas_existentes:
         turma_limpa
     ).strip()
 
-    # Procura padrão '3A' ou '1EMI'
+    # 1. Procura código SIGEduc alfanumérico composto: ex: SEGUMAT1SA -> Segu1SA, ADMVES1SA -> Adm1SA
+    match_cod_sigeduc = re.search(r"\b([A-Z]{2,5}?)(?:MAT|VESP|VES|NOT|INT)(\d+[A-Z]{1,2})\b", turma_limpa)
+    # 2. Procura padrão '3A' ou '1EMI'
     match_turma = re.search(r"(\d+)\s*([A-Z]{1,4})\b", turma_sem_palavras)
-    # Procura padrão 'INFO 2' -> 'Info2'
+    # 3. Procura padrão 'INFO 2' -> 'Info2'
     match_sigla_num = re.search(r"([A-Z]{2,})\s*(\d+)", turma_sem_palavras)
 
-    if match_turma:
+    if match_cod_sigeduc:
+        curso_curto = match_cod_sigeduc.group(1)[:4].capitalize()
+        sufixo_turma = match_cod_sigeduc.group(2)
+        turma_abrev = f"{curso_curto}{sufixo_turma}"
+    elif match_turma:
         turma_abrev = f"{match_turma.group(1)}{match_turma.group(2)}"
     elif match_sigla_num:
         turma_abrev = f"{match_sigla_num.group(1)[:4].capitalize()}{match_sigla_num.group(2)}"
@@ -299,43 +334,99 @@ class SigeducScraper:
     def esta_no_painel_docente(self) -> bool:
         """
         Verifica com precisão se a página atual é a tela principal de turmas do docente.
-        Garante que não estejamos em subpáginas de notas, frequência ou avaliações.
+        Garante que NÃO estejamos em subpáginas de notas, frequência, avaliações ou diário.
         """
         try:
             url = (self.page.url or "").lower()
-            # Se a URL contém marcadores óbvios de subpáginas, NÃO é o painel de turmas
+            # 1. Se a URL contém marcadores óbvios de subpáginas, NÃO é o painel de turmas
             if any(p in url for p in ["form_", "nota", "avaliacao", "frequencia", "calendario"]):
                 return False
 
+            # 2. Desqualificadores imediatos baseados no conteúdo da página:
+            # Se a página contiver títulos ou elementos exclusivos das telas de notas/frequência, NÃO é o painel de turmas!
+            conteudo = sc.obter_conteudo_seguro(self.page).upper()
+            
+            # Textos exclusivos de telas de notas ou FV:
+            if any(t in conteudo for t in [
+                "LANÇAR NOTAS PARA AVALIAÇÕES", "LANCAR NOTAS",
+                "VERIFICAR AVALIAÇÕES NÃO REALIZADAS", "VERIFICAR AVALIACOES",
+                "CALENDÁRIO DE FREQUÊNCIA", "CALENDARIO DE FREQUENCIA",
+                "ATENÇÃO! OS REGISTROS REALIZADOS NESTA TELA NÃO SERÃO SALVOS",
+                "AVALIAÇÕES NÃO REALIZADAS"
+            ]):
+                return False
+
+            # Elementos exclusivos de telas de notas:
+            # Inputs de nota (:av__, :nuREC__, :nu__), tabelas de resultado (:result), abas de unidade (:tab1)
+            el_nota = self.page.query_selector(
+                "input[id*=':av__'], input.avaliacao, input[id*=':nuREC__'], "
+                "table[id*='formulario:result'], table[id*='formulario:tab1'], "
+                "#formulario\\:result"
+            )
+            if el_nota:
+                return False
+
+            # Elementos exclusivos da tela de frequência:
+            if self.page.query_selector("#tableAlunos, table[id*='tableAlunos']"):
+                return False
+
+            # 3. Qualificadores POSITIVOS obrigatórios da tela principal de turmas:
+            # Verifica se existem botões/ícones de ação de turmas na tela (padrão oficial do SIGEduc BA)
+            tem_icone_acao = bool(self.page.query_selector(
+                "img[src*='notas_lancar'], img[src*='frequencia_lancar'], "
+                "a[title*='Resultados'], a[title*='Frequência'], a[title*='Frequencia'], "
+                "input[type='image'][src*='notas'], input[type='image'][src*='frequencia']"
+            ))
+
+            tem_titulo_turmas = any(k in conteudo for k in ["MINHAS TURMAS", "TURMAS REGULARES", "TURMAS DO PROFESSOR"])
+
+            # Verifica estrutura da tabela de turmas
             tabelas = self.page.query_selector_all("table")
+            tem_tabela_turmas = False
             for t in tabelas:
                 txt = sc.normalizar_nome(t.inner_text() or "")
-                # Tabela de turmas no SIGEduc contém colunas estruturais características
-                if "TURMA" in txt and ("COMPONENTE" in txt or "DISCIPLINA" in txt) and any(k in txt for k in ["OFERTA", "SERIE", "ESCOLA", "PERIODICIDADE", "ANO"]):
-                    return True
-        except Exception:
-            pass
+                # Tabela de turmas contém colunas estruturais características
+                if "TURMA" in txt and ("COMPONENTE" in txt or "DISCIPLINA" in txt) and any(k in txt for k in ["QTD", "ESTUDANTE", "OFERTA", "SERIE", "ACOES"]):
+                    tem_tabela_turmas = True
+                    break
+
+            if (tem_icone_acao or tem_titulo_turmas) and tem_tabela_turmas:
+                return True
+
+            if tem_icone_acao:
+                return True
+
+        except Exception as e:
+            logger.debug(f"Erro em esta_no_painel_docente: {e}")
         return False
 
     def navegar_diario_classe(self) -> bool:
-        """Navega para a tela principal de turmas / Diário de Classe Digital de forma segura para o JSF."""
-        logger.info("Navegando para o Diário de Classe Digital (Painel do Professor)...")
+        """
+        Navega de volta para a tela principal de turmas / Diário de Classe Digital.
+        Garante que sai de subpáginas (notas, frequência, avaliações) e retorna
+        à lista de turmas com os botões de ação ativos.
+        """
+        logger.info("Navegando para o Diário de Classe Digital (Painel de Turmas)...")
 
-        # 1. Se já está no painel docente real, conclui imediatamente
+        # 1. Se já está no painel docente real comprovado, conclui imediatamente
         if self.esta_no_painel_docente():
             logger.info("✓ Já está no painel principal do professor com turmas disponíveis.")
             return True
 
-        # 2. Tenta clicar no botão "Voltar" da tela atual (comum em telas de notas)
+        # 2. Tenta clicar no botão "Voltar" da tela atual (comum em telas de notas e frequência)
         try:
             btn_voltar = self.page.query_selector(
-                "input[value*='Voltar'], button:has-text('Voltar'), a:has-text('Voltar'), input[type='button'][value*='Voltar'], input[type='submit'][value*='Voltar']"
+                "input[value*='Voltar'], button:has-text('Voltar'), a:has-text('Voltar'), "
+                "input[type='button'][value*='Voltar'], input[type='submit'][value*='Voltar']"
             )
             if btn_voltar and btn_voltar.is_visible():
                 logger.info("Acionando botão 'Voltar'...")
                 btn_voltar.click()
                 time.sleep(sc.ESPERA_CARREGAMENTO)
-                self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                try:
+                    self.page.wait_for_load_state("domcontentloaded", timeout=8000)
+                except Exception:
+                    pass
                 if self.esta_no_painel_docente():
                     logger.info("✓ Retornou ao painel via botão 'Voltar'.")
                     return True
@@ -345,35 +436,44 @@ class SigeducScraper:
         # 3. Tenta o link 'Menu Professor' ou 'verPortalDocente.do' (rota nativa do SIGEduc)
         try:
             link_menu = self.page.query_selector(
-                "a:has-text('Menu Professor'), a[href*='verPortalDocente.do'], a:has-text('Portal do Docente'), a:has-text('Docente')"
+                "a:has-text('Menu Professor'), a[href*='verPortalDocente.do'], "
+                "a:has-text('Portal do Docente'), a:has-text('Docente')"
             )
             if link_menu and link_menu.is_visible():
                 logger.info("Acionando link 'Menu Professor'...")
                 link_menu.click()
                 time.sleep(sc.ESPERA_CARREGAMENTO)
-                self.page.wait_for_load_state("domcontentloaded", timeout=12000)
+                try:
+                    self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                except Exception:
+                    pass
                 if self.esta_no_painel_docente():
                     logger.info("✓ Retornou ao painel via 'Menu Professor'.")
                     return True
         except Exception as e:
             logger.debug(f"Tentativa de Menu Professor: {e}")
 
-        # 4. Procura links com texto 'Diário de Classe' ou 'Turmas'
+        # 4. Procura links na barra de navegação/breadcrumb: 'Diário de Classe Digital'
         try:
             links = self.page.query_selector_all("a")
             for link in links:
                 try:
                     txt = sc.normalizar_nome(link.inner_text() or "")
-                    if "DIARIO DE CLASSE" in txt or "PORTAL DO DOCENTE" in txt:
+                    if ("DIARIO DE CLASSE" in txt or "MINHAS TURMAS" in txt) and link.is_visible():
+                        logger.info(f"Acionando link de navegação: {link.inner_text().strip()}...")
                         link.click()
                         time.sleep(sc.ESPERA_CARREGAMENTO)
-                        self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                        try:
+                            self.page.wait_for_load_state("domcontentloaded", timeout=8000)
+                        except Exception:
+                            pass
                         if self.esta_no_painel_docente():
+                            logger.info("✓ Retornou ao painel via link de navegação.")
                             return True
                 except Exception:
                     continue
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Tentativa de breadcrumb: {e}")
 
         # 5. Fallback direto: navega para URL_FREQUENCIA
         logger.info("Carregando URL do portal docente diretamente...")
@@ -387,12 +487,16 @@ class SigeducScraper:
         except Exception as e:
             logger.warning(f"Erro ao navegar para URL do portal: {e}")
 
-        sucesso = self.esta_no_painel_docente()
-        if sucesso:
-            logger.info("✓ Painel principal do docente carregado.")
-        else:
-            logger.warning("⚠️ Não foi possível confirmar visualmente o retorno ao painel de turmas.")
-        return sucesso
+        # Aguarda até 10s para a tabela de turmas renderizar
+        fim_espera = time.time() + 10
+        while time.time() < fim_espera:
+            if self.esta_no_painel_docente():
+                logger.info("✓ Painel principal do docente confirmado.")
+                return True
+            time.sleep(1)
+
+        logger.warning("⚠️ Não foi possível confirmar visualmente o retorno ao painel de turmas.")
+        return False
 
     def listar_turmas(self) -> list[dict[str, Any]]:
         """
@@ -526,15 +630,33 @@ class SigeducScraper:
             return {}
 
         try:
+            btn_notas.scroll_into_view_if_needed()
             btn_notas.click()
             time.sleep(sc.ESPERA_CARREGAMENTO)
             self.page.wait_for_load_state("domcontentloaded", timeout=15000)
         except Exception as e:
-            logger.error(f"Não foi possível clicar no botão de notas da turma {turma_nome}: {e}")
-            return {}
+            logger.warning(f"Clique direto em botão de notas falhou ({e}), tentando via JS...")
+            try:
+                btn_notas.evaluate("el => el.click()")
+                time.sleep(sc.ESPERA_CARREGAMENTO)
+                self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+            except Exception as e2:
+                logger.error(f"Não foi possível clicar no botão de notas da turma {turma_nome}: {e2}")
+                return {}
 
-        # Verifica se realmente saiu do painel docente
-        if self.esta_no_painel_docente():
+        # Aguarda ativamente a saída do painel docente e o carregamento da tela de notas
+        fim_aguardo = time.time() + 15
+        abriu_notas = False
+        while time.time() < fim_aguardo:
+            if not self.esta_no_painel_docente() and (
+                self.page.query_selector("input[id*=':av__'], input.avaliacao, table[id*='formulario:result'], table[id*='formulario:tab1']") or
+                "LANÇAR NOTAS" in sc.obter_conteudo_seguro(self.page).upper()
+            ):
+                abriu_notas = True
+                break
+            time.sleep(1)
+
+        if not abriu_notas and self.esta_no_painel_docente():
             logger.error(f"❌ O clique no botão de notas não abriu a tela de notas da turma {turma_nome}.")
             return {}
 
@@ -705,15 +827,33 @@ class SigeducScraper:
             return pd.DataFrame()
 
         try:
+            btn_freq.scroll_into_view_if_needed()
             btn_freq.click()
             time.sleep(sc.ESPERA_CARREGAMENTO)
             self.page.wait_for_load_state("domcontentloaded", timeout=15000)
         except Exception as e:
-            logger.error(f"Não foi possível clicar diretamente no botão de frequência: {e}")
-            return pd.DataFrame()
+            logger.warning(f"Clique direto em botão de frequência falhou ({e}), tentando via JS...")
+            try:
+                btn_freq.evaluate("el => el.click()")
+                time.sleep(sc.ESPERA_CARREGAMENTO)
+                self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+            except Exception as e2:
+                logger.error(f"Não foi possível clicar no botão de frequência da turma {turma_nome}: {e2}")
+                return pd.DataFrame()
 
-        # Verifica se saiu do painel docente
-        if self.esta_no_painel_docente():
+        # Aguarda ativamente a saída do painel docente e o carregamento do calendário
+        fim_aguardo = time.time() + 15
+        abriu_freq = False
+        while time.time() < fim_aguardo:
+            if not self.esta_no_painel_docente() and (
+                sc.garantir_pagina_calendario(self.page) or
+                "CALENDÁRIO DE FREQUÊNCIA" in sc.obter_conteudo_seguro(self.page).upper()
+            ):
+                abriu_freq = True
+                break
+            time.sleep(1)
+
+        if not abriu_freq and self.esta_no_painel_docente():
             logger.error(f"❌ O clique no botão de frequência não abriu a tela de frequência da turma {turma_nome}.")
             return pd.DataFrame()
 
@@ -1009,9 +1149,19 @@ class SigeducScraper:
 
             # Obtém referências frescas da tabela para evitar ElementHandle detached/stale
             turmas_frescas = self.listar_turmas()
+            
+            # Se a lista retornou com menos turmas que o esperado, tenta re-obter até 3 vezes
+            tentativas = 0
+            while len(turmas_frescas) <= idx and tentativas < 3:
+                tentativas += 1
+                logger.warning(f"Aguardando sincronização da tabela de turmas (tentativa {tentativas}/3)...")
+                time.sleep(2)
+                self.navegar_diario_classe()
+                turmas_frescas = self.listar_turmas()
+
             if idx >= len(turmas_frescas):
-                logger.warning(f"Turma no índice {idx + 1} não encontrada na re-listagem.")
-                break
+                logger.warning(f"Turma no índice {idx + 1} não encontrada na re-listagem. Prosseguindo...")
+                continue
 
             t = turmas_frescas[idx]
             turma_nome = t["nome_turma"]
@@ -1023,25 +1173,33 @@ class SigeducScraper:
 
             turma_resultado = {"turma_info": t, "notas_unidades": {}, "frequencia_df": None}
 
-            # Extração de Notas
-            if modo in ["notas", "todos"]:
-                notas = self.extrair_notas_turma(t)
-                turma_resultado["notas_unidades"] = notas
-                # Retorna ao painel docente após extrair notas
-                self.navegar_diario_classe()
-
-            # Extração de Frequência
-            if modo in ["frequencia", "todos"]:
-                if not self.esta_no_painel_docente():
+            try:
+                # Extração de Notas
+                if modo in ["notas", "todos"]:
+                    notas = self.extrair_notas_turma(t)
+                    turma_resultado["notas_unidades"] = notas
+                    # Retorna garantidamente ao painel docente após extrair notas
                     self.navegar_diario_classe()
-                # Re-obtém referências frescas para a mesma turma após retornar ao painel
-                turmas_frescas_freq = self.listar_turmas()
-                if idx < len(turmas_frescas_freq):
-                    t_freq = turmas_frescas_freq[idx]
-                    freq_df = self.extrair_frequencia_turma(t_freq)
-                    turma_resultado["frequencia_df"] = freq_df
-                # Retorna ao painel docente após extrair frequência
-                self.navegar_diario_classe()
+
+                # Extração de Frequência
+                if modo in ["frequencia", "todos"]:
+                    if not self.esta_no_painel_docente():
+                        self.navegar_diario_classe()
+                    # Re-obtém referências frescas para a mesma turma após retornar ao painel
+                    turmas_frescas_freq = self.listar_turmas()
+                    if idx < len(turmas_frescas_freq):
+                        t_freq = turmas_frescas_freq[idx]
+                        freq_df = self.extrair_frequencia_turma(t_freq)
+                        turma_resultado["frequencia_df"] = freq_df
+                    # Retorna garantidamente ao painel docente após extrair frequência
+                    self.navegar_diario_classe()
+
+            except Exception as e:
+                logger.error(f"Erro inesperado durante processamento da turma {turma_nome}: {e}")
+                try:
+                    self.navegar_diario_classe()
+                except Exception:
+                    pass
 
             dados_completos.append(turma_resultado)
 
