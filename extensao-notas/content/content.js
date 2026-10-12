@@ -87,9 +87,23 @@
   // =========================================================================
   // 3. Detecção de Tela e Elementos no SIGEduc
   // =========================================================================
+  function eTabelaCalendario(tabela) {
+    if (!tabela) return false;
+    try {
+      const texto = (tabela.innerText || "").toUpperCase();
+      const diasSemana = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+      const contador = diasSemana.filter(d => texto.includes(d)).length;
+      if (contador >= 4) {
+        const links = tabela.querySelectorAll("a");
+        if (links.length >= 1) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
   function detectarTela() {
     const textoDoc = (document.body ? document.body.innerText : "").toUpperCase();
-    const url = window.location.href.toLowerCase();
+    const url = (typeof window !== "undefined" && window.location ? window.location.href : "").toLowerCase();
 
     // 1. Tela de Falta Vinculada
     if (
@@ -110,7 +124,23 @@
       return "notas";
     }
 
-    // 3. Painel do Professor / Lista de Turmas
+    // 3. Tela de Frequência do Dia (Chamada / Tabela de Alunos)
+    if (
+      document.querySelector("#tableAlunos") ||
+      (document.querySelector("table") && (textoDoc.includes("REGISTRO DE FREQUÊNCIA") || textoDoc.includes("REGISTRO DE FREQUENCIA") || textoDoc.includes("LANÇAR FREQUÊNCIA") || textoDoc.includes("LANCAR FREQUENCIA") || textoDoc.includes("FREQUÊNCIA DO DIA")) && document.querySelector("input[type='checkbox']"))
+    ) {
+      return "frequencia_dia";
+    }
+
+    // 4. Calendário Mensal de Frequência
+    if (
+      document.querySelectorAll("table").length > 0 &&
+      Array.from(document.querySelectorAll("table")).some(t => eTabelaCalendario(t))
+    ) {
+      return "frequencia_calendario";
+    }
+
+    // 5. Painel do Professor / Lista de Turmas
     if (
       textoDoc.includes("MINHAS TURMAS") ||
       textoDoc.includes("TURMAS REGULARES") ||
@@ -1136,6 +1166,434 @@
   }
 
   // =========================================================================
+  // 7.1 Módulo de Lançamento de Presenças e Faltas (Frequência & Calendário)
+  // =========================================================================
+  const MESES = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+
+  function alterarCheckbox(chk, marcar) {
+    if (!chk || chk.disabled || chk.getAttribute("disabled")) return false;
+    const estadoAtual = Boolean(chk.checked);
+    if (estadoAtual === Boolean(marcar)) return false;
+
+    try { chk.focus(); } catch (e) {}
+    try { chk.click(); } catch (e) {}
+
+    if (chk.checked !== marcar) {
+      chk.checked = marcar;
+    }
+
+    try {
+      chk.dispatchEvent(new Event("change", { bubbles: true }));
+      chk.dispatchEvent(new Event("input", { bubbles: true }));
+    } catch (e) {}
+
+    return true;
+  }
+
+  function extrairAlunosFrequenciaDaTela() {
+    let tabela = document.querySelector("#tableAlunos");
+    if (!tabela) {
+      const tabelas = Array.from(document.querySelectorAll("table"));
+      tabela = tabelas.find(t => t.querySelector("tbody tr") && t.querySelector("input[type='checkbox']"));
+    }
+    if (!tabela) return { alunos: [], total: 0 };
+
+    const linhas = Array.from(tabela.querySelectorAll("tbody tr"));
+    const alunos = [];
+
+    linhas.forEach((linha, idx) => {
+      const td3 = linha.querySelector("td:nth-child(3)");
+      let nome = td3 ? limparNomeAluno(td3.innerText || "") : "";
+      if (!nome || nome.length < 3) {
+        nome = extrairNomeDaLinha(linha);
+      }
+      if (!nome) return;
+
+      const cbs = Array.from(linha.querySelectorAll("input[type='checkbox']"));
+      const habilitados = cbs.filter(c => !c.disabled && !c.getAttribute("disabled"));
+      const desabilitados = cbs.filter(c => c.disabled || c.getAttribute("disabled"));
+
+      alunos.push({
+        indice: idx,
+        nome: nome,
+        linha: linha,
+        checkboxes: habilitados,
+        totalCheckboxes: cbs.length,
+        temDesabilitado: desabilitados.length > 0
+      });
+    });
+
+    return { alunos, total: alunos.length };
+  }
+
+  function marcarPresencaTodos() {
+    const { alunos } = extrairAlunosFrequenciaDaTela();
+    let modificados = 0;
+
+    alunos.forEach(aluno => {
+      aluno.checkboxes.forEach(chk => {
+        // Checkbox desmarcado = PRESENÇA
+        if (alterarCheckbox(chk, false)) {
+          modificados++;
+        }
+      });
+    });
+
+    return {
+      sucesso: true,
+      totalAlunos: alunos.length,
+      modificados: modificados,
+      mensagem: `Presença atribuída a ${alunos.length} estudantes (${modificados} marcações atualizadas).`
+    };
+  }
+
+  function marcarFaltososPorLista(nomesFaltosos = []) {
+    const { alunos } = extrairAlunosFrequenciaDaTela();
+    const sgnNomes = (typeof window !== "undefined" && window.SgnNomes) ||
+                     (typeof SgnNomes !== "undefined" ? SgnNomes : null) ||
+                     (typeof require !== "undefined" ? require("../lib/nomes.js") : null);
+
+    let faltososCount = 0;
+    let presentesCount = 0;
+    const faltososEncontrados = [];
+    const nomesNormalizadosFaltosos = (nomesFaltosos || []).map(n => String(n).trim()).filter(Boolean);
+
+    alunos.forEach(aluno => {
+      let ehFaltoso = false;
+      if (sgnNomes && nomesNormalizadosFaltosos.length > 0) {
+        ehFaltoso = nomesNormalizadosFaltosos.some(nomeF => sgnNomes.nomesSaoIguais(aluno.nome, nomeF));
+      }
+
+      if (ehFaltoso) {
+        faltososCount++;
+        faltososEncontrados.push(aluno.nome);
+        aluno.checkboxes.forEach(chk => alterarCheckbox(chk, true));
+      } else {
+        presentesCount++;
+        aluno.checkboxes.forEach(chk => alterarCheckbox(chk, false));
+      }
+    });
+
+    const naoEncontrados = nomesNormalizadosFaltosos.filter(nomeF => {
+      return !faltososEncontrados.some(nomeE => sgnNomes && sgnNomes.nomesSaoIguais(nomeE, nomeF));
+    });
+
+    return {
+      sucesso: true,
+      totalAlunos: alunos.length,
+      faltososCount,
+      presentesCount,
+      faltososEncontrados,
+      naoEncontrados,
+      mensagem: `${faltososCount} faltosos marcados, ${presentesCount} presentes confirmados.`
+    };
+  }
+
+  function marcarFaltososPorMapaData(mapaAlunosData = {}) {
+    const { alunos } = extrairAlunosFrequenciaDaTela();
+    const sgnNomes = (typeof window !== "undefined" && window.SgnNomes) ||
+                     (typeof SgnNomes !== "undefined" ? SgnNomes : null) ||
+                     (typeof require !== "undefined" ? require("../lib/nomes.js") : null);
+
+    const nomesTela = alunos.map(a => a.nome);
+    const nomesPlanilha = Object.keys(mapaAlunosData || {});
+
+    let resultadoCasamento = null;
+    if (sgnNomes) {
+      resultadoCasamento = sgnNomes.casarListas(nomesTela, nomesPlanilha);
+    }
+
+    let faltososCount = 0;
+    let presentesCount = 0;
+
+    alunos.forEach((aluno, iTela) => {
+      let status = "P";
+      if (resultadoCasamento && resultadoCasamento.pares.has(iTela)) {
+        const par = resultadoCasamento.pares.get(iTela);
+        const nomePlanilha = nomesPlanilha[par.indicePlanilha];
+        status = mapaAlunosData[nomePlanilha] || "P";
+      } else if (mapaAlunosData && mapaAlunosData[aluno.nome]) {
+        status = mapaAlunosData[aluno.nome];
+      }
+
+      const ehFalta = (status === "F" || status === "X" || status === "1");
+      if (ehFalta) {
+        faltososCount++;
+        aluno.checkboxes.forEach(chk => alterarCheckbox(chk, true));
+      } else {
+        presentesCount++;
+        aluno.checkboxes.forEach(chk => alterarCheckbox(chk, false));
+      }
+    });
+
+    return {
+      sucesso: true,
+      totalAlunos: alunos.length,
+      faltososCount,
+      presentesCount,
+      mensagem: `Frequência aplicada: ${faltososCount} faltosos e ${presentesCount} presentes.`
+    };
+  }
+
+  function encontrarEClicarDiaNoCalendario(dia, mes) {
+    const tabelas = Array.from(document.querySelectorAll("table")).filter(t => eTabelaCalendario(t));
+    if (!tabelas.length) return false;
+
+    const diaStr = String(parseInt(dia, 10));
+    const diaZero = diaStr.padStart(2, "0");
+    const nomeMes = (mes && MESES[mes - 1]) ? MESES[mes - 1].toUpperCase() : null;
+
+    for (const tabela of tabelas) {
+      const txtTab = (tabela.innerText || "").toUpperCase();
+      if (nomeMes && !txtTab.includes(nomeMes)) {
+        continue;
+      }
+
+      const links = Array.from(tabela.querySelectorAll("a"));
+      for (const link of links) {
+        const txtLink = (link.innerText || "").trim();
+        if (txtLink === diaStr || txtLink === diaZero) {
+          try {
+            link.click();
+            return true;
+          } catch (e) {
+            console.error("Erro ao clicar no dia do calendário:", e);
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  function voltarParaCalendario() {
+    const botoes = Array.from(document.querySelectorAll("input[type='button'], input[type='submit'], button, a"));
+    const btnVoltar = botoes.find(el => {
+      const val = ((el.value || el.innerText || "")).toUpperCase();
+      return val.includes("VOLTAR") || val.includes("RETORNAR") || val.includes("CALENDÁRIO") || val.includes("CALENDARIO");
+    });
+    if (btnVoltar) {
+      btnVoltar.click();
+      return true;
+    }
+    if (typeof window !== "undefined" && window.history && window.history.back) {
+      window.history.back();
+      return true;
+    }
+    return false;
+  }
+
+  function exibirBarraProgressoLote(atual, total, dataAtual) {
+    if (typeof document === "undefined" || !document.body) return;
+    let widget = document.getElementById("sgn-progresso-lote");
+    if (!widget) {
+      widget = document.createElement("div");
+      widget.id = "sgn-progresso-lote";
+      document.body.appendChild(widget);
+    }
+
+    widget.innerHTML = `
+      <span class="sgn-barra-icon">⏳</span>
+      <div class="sgn-prog-text">
+        Lote em andamento: <strong>${atual} de ${total}</strong> (${dataAtual})
+      </div>
+      <button type="button" class="sgn-btn-cancelar-lote" id="sgn-btn-cancelar-lote" title="Interromper lote de frequência">
+        ⏹️ Parar
+      </button>
+    `;
+
+    const btnParar = widget.querySelector("#sgn-btn-cancelar-lote");
+    if (btnParar) {
+      btnParar.onclick = () => {
+        sessionStorage.removeItem("sgn_lote_frequencia");
+        widget.style.display = "none";
+        exibirToast("Lote Interrompido", "A automação de datas foi cancelada.", "aviso", 4000);
+      };
+    }
+
+    widget.style.display = "flex";
+  }
+
+  async function verificarEExecutarFilaLote() {
+    if (typeof window === "undefined" || !window.sessionStorage) return;
+    const raw = sessionStorage.getItem("sgn_lote_frequencia");
+    if (!raw) return;
+
+    let config = null;
+    try {
+      config = JSON.parse(raw);
+    } catch (e) {
+      sessionStorage.removeItem("sgn_lote_frequencia");
+      return;
+    }
+
+    if (!config || !config.ativo || !Array.isArray(config.filaDatas)) {
+      sessionStorage.removeItem("sgn_lote_frequencia");
+      return;
+    }
+
+    const tela = detectarTela();
+    const indiceAtual = config.indiceAtual || 0;
+    const total = config.filaDatas.length;
+
+    if (indiceAtual >= total) {
+      sessionStorage.removeItem("sgn_lote_frequencia");
+      const widget = document.getElementById("sgn-progresso-lote");
+      if (widget) widget.style.display = "none";
+      exibirToast("Lote Concluído! 🎉", `Todas as ${total} datas foram lançadas com sucesso!`, "sucesso", 8000);
+      return;
+    }
+
+    const dataAtual = config.filaDatas[indiceAtual];
+    exibirBarraProgressoLote(indiceAtual + 1, total, dataAtual);
+
+    if (tela === "frequencia_dia") {
+      const mapaData = (config.dadosFrequenciaPorData && config.dadosFrequenciaPorData[dataAtual]) || null;
+      if (mapaData) {
+        marcarFaltososPorMapaData(mapaData);
+      } else {
+        marcarPresencaTodos();
+      }
+
+      await new Promise(r => setTimeout(r, 450));
+
+      if (config.autoGravar && config.senha) {
+        exibirToast("Gravando Chamada...", `Confirmando presença do dia ${dataAtual} com senha...`, "info", 3000);
+        const resGravar = await submeterComSenha(config.senha);
+        if (!resGravar.sucesso) {
+          exibirToast("Atenção na Gravação", resGravar.erro || "Verifique a senha no site.", "aviso", 6000);
+          return;
+        }
+      }
+
+      config.indiceAtual = indiceAtual + 1;
+      sessionStorage.setItem("sgn_lote_frequencia", JSON.stringify(config));
+
+      await new Promise(r => setTimeout(r, 600));
+      voltarParaCalendario();
+
+    } else if (tela === "frequencia_calendario") {
+      const pedacos = dataAtual.split(/[\/\-]/);
+      const dia = parseInt(pedacos[0], 10);
+      const mes = pedacos.length > 1 ? parseInt(pedacos[1], 10) : null;
+
+      await new Promise(r => setTimeout(r, 600));
+      const clicou = encontrarEClicarDiaNoCalendario(dia, mes);
+      if (!clicou) {
+        exibirToast("Data Não Encontrada", `Não foi possível localizar o dia ${dataAtual} no calendário ativo. Ajuste o mês se necessário.`, "aviso", 8000);
+      }
+    }
+  }
+
+  function baixarModeloFrequenciaDireto() {
+    const metadados = extrairMetadadosTela();
+    const { alunos } = extrairAlunosFrequenciaDaTela();
+    const sgnExcel = (typeof window !== "undefined" && window.SgnExcel) ||
+                     (typeof SgnExcel !== "undefined" ? SgnExcel : null) ||
+                     (typeof require !== "undefined" ? require("../lib/excel.js") : null);
+
+    if (!sgnExcel) {
+      exibirToast("Baixar Modelo", "Abra a extensão SIGEduc Auto para baixar a planilha modelo.", "info", 4000);
+      return;
+    }
+
+    try {
+      const res = sgnExcel.gerarPlanilhaModeloFrequencia({
+        turma: metadados.turma,
+        componente: metadados.componente,
+        alunos: alunos.map(a => a.nome)
+      });
+
+      const blob = new Blob([res.arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.nomeArquivo;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      exibirToast("Modelo Gerado", `Planilha '${res.nomeArquivo}' baixada com sucesso!`, "sucesso", 4000);
+    } catch (e) {
+      exibirToast("Erro ao Gerar Modelo", e.message, "erro", 5000);
+    }
+  }
+
+  function injetarBarraFrequenciaNaTela() {
+    if (typeof document === "undefined" || !document.body) return;
+    if (document.getElementById("sgn-barra-frequencia")) return;
+
+    let tabela = document.querySelector("#tableAlunos");
+    if (!tabela) {
+      const tabelas = Array.from(document.querySelectorAll("table"));
+      tabela = tabelas.find(t => t.querySelector("tbody tr") && t.querySelector("input[type='checkbox']"));
+    }
+    if (!tabela) return;
+
+    const barra = document.createElement("div");
+    barra.id = "sgn-barra-frequencia";
+    barra.className = "sgn-barra-frequencia";
+    barra.innerHTML = `
+      <div class="sgn-barra-brand">
+        <span class="sgn-barra-icon">📅</span>
+        <strong class="sgn-barra-title">SIGEduc Auto</strong>
+      </div>
+      <div class="sgn-barra-actions">
+        <button type="button" id="sgn-btn-todos-presentes" class="sgn-btn-barra-verde" title="Desmarca todas as faltas (100% de presença)">
+          🟢 100% Presentes
+        </button>
+        <div class="sgn-barra-input-group">
+          <input type="text" id="sgn-input-faltosos-rapido" placeholder="Faltosos (ex: Sabrina, Thiago)..." class="sgn-barra-input" />
+          <button type="button" id="sgn-btn-marcar-faltosos" class="sgn-btn-barra-laranja" title="Marca falta apenas para os digitados">
+            ⚡ Marcar Faltas
+          </button>
+        </div>
+        <button type="button" id="sgn-btn-baixar-modelo-freq" class="sgn-btn-barra-cinza" title="Baixa modelo Excel desta turma com markboxes">
+          📥 Baixar Modelo Excel
+        </button>
+      </div>
+    `;
+
+    tabela.parentNode.insertBefore(barra, tabela);
+
+    const btnTodos = barra.querySelector("#sgn-btn-todos-presentes");
+    if (btnTodos) {
+      btnTodos.onclick = () => {
+        const res = marcarPresencaTodos();
+        exibirToast("Chamada Atualizada", res.mensagem, "sucesso", 4000);
+      };
+    }
+
+    const btnFaltosos = barra.querySelector("#sgn-btn-marcar-faltosos");
+    const inputFaltosos = barra.querySelector("#sgn-input-faltosos-rapido");
+    if (btnFaltosos && inputFaltosos) {
+      const acaoMarcar = () => {
+        const val = inputFaltosos.value.trim();
+        if (!val) {
+          exibirToast("Atenção", "Digite ao menos um nome de aluno faltoso.", "aviso", 3000);
+          return;
+        }
+        const nomes = val.split(/[,;\n\r]+/).map(n => n.trim()).filter(Boolean);
+        const res = marcarFaltososPorLista(nomes);
+        exibirToast("Faltas Registradas", res.mensagem, "sucesso", 4000);
+      };
+      btnFaltosos.onclick = acaoMarcar;
+      inputFaltosos.onkeydown = (e) => {
+        if (e.key === "Enter") acaoMarcar();
+      };
+    }
+
+    const btnModelo = barra.querySelector("#sgn-btn-baixar-modelo-freq");
+    if (btnModelo) {
+      btnModelo.onclick = () => {
+        baixarModeloFrequenciaDireto();
+      };
+    }
+  }
+
+  // =========================================================================
   // 8. Listener de Mensagens da Extensão com Suporte a Reinjeção Dinâmica
   // =========================================================================
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
@@ -1289,6 +1747,125 @@
             return true; // mantem canal assincrono aberto
           }
 
+          case "OBTER_ESTADO_FREQUENCIA": {
+            const tela = detectarTela();
+            const metadados = extrairMetadadosTela();
+            let alunosFreq = [];
+            if (tela === "frequencia_dia") {
+              const res = extrairAlunosFrequenciaDaTela();
+              alunosFreq = res.alunos.map(a => ({
+                indice: a.indice,
+                nome: a.nome,
+                qtdCheckboxes: a.checkboxes.length,
+                temDesabilitado: a.temDesabilitado
+              }));
+            }
+            let diasCalendario = [];
+            if (tela === "frequencia_calendario") {
+              const tabs = Array.from(document.querySelectorAll("table")).filter(t => eTabelaCalendario(t));
+              tabs.forEach(t => {
+                const links = Array.from(t.querySelectorAll("a"));
+                links.forEach(l => {
+                  const num = parseInt((l.innerText || "").trim(), 10);
+                  if (!isNaN(num) && num >= 1 && num <= 31) {
+                    diasCalendario.push(num);
+                  }
+                });
+              });
+            }
+
+            let loteAtivo = false;
+            let statusLote = null;
+            if (typeof window !== "undefined" && window.sessionStorage) {
+              const raw = sessionStorage.getItem("sgn_lote_frequencia");
+              if (raw) {
+                try {
+                  statusLote = JSON.parse(raw);
+                  loteAtivo = Boolean(statusLote && statusLote.ativo);
+                } catch (e) {}
+              }
+            }
+
+            sendResponse({
+              sucesso: true,
+              tela,
+              turma: metadados.turma,
+              turmaCompleta: metadados.turmaCompleta,
+              componente: metadados.componente,
+              escola: metadados.escola,
+              totalAlunos: alunosFreq.length,
+              alunos: alunosFreq,
+              diasCalendario: Array.from(new Set(diasCalendario)).sort((a, b) => a - b),
+              loteAtivo,
+              statusLote
+            });
+            break;
+          }
+
+          case "MARCAR_FREQUENCIA_TODOS": {
+            const res = marcarPresencaTodos();
+            sendResponse(res);
+            break;
+          }
+
+          case "MARCAR_FREQUENCIA_FALTOSOS": {
+            const res = marcarFaltososPorLista(request.nomesFaltosos || []);
+            sendResponse(res);
+            break;
+          }
+
+          case "MARCAR_FREQUENCIA_EXCEL": {
+            const res = marcarFaltososPorMapaData(request.mapaAlunosData || {});
+            sendResponse(res);
+            break;
+          }
+
+          case "INICIAR_LOTE_CALENDARIO": {
+            if (typeof window !== "undefined" && window.sessionStorage) {
+              const config = {
+                ativo: true,
+                filaDatas: request.filaDatas || [],
+                indiceAtual: 0,
+                dadosFrequenciaPorData: request.dadosFrequenciaPorData || {},
+                autoGravar: Boolean(request.autoGravar),
+                senha: request.senha || ""
+              };
+              sessionStorage.setItem("sgn_lote_frequencia", JSON.stringify(config));
+              verificarEExecutarFilaLote();
+              sendResponse({ sucesso: true, mensagem: `Lote iniciado com ${config.filaDatas.length} datas.` });
+            } else {
+              sendResponse({ sucesso: false, erro: "sessionStorage indisponível." });
+            }
+            break;
+          }
+
+          case "CANCELAR_LOTE_CALENDARIO": {
+            if (typeof window !== "undefined" && window.sessionStorage) {
+              sessionStorage.removeItem("sgn_lote_frequencia");
+              const widget = document.getElementById("sgn-progresso-lote");
+              if (widget) widget.style.display = "none";
+              sendResponse({ sucesso: true, mensagem: "Lote cancelado." });
+            } else {
+              sendResponse({ sucesso: true });
+            }
+            break;
+          }
+
+          case "OBTER_DADOS_MODELO_FREQUENCIA": {
+            const metadados = extrairMetadadosTela();
+            const { alunos } = extrairAlunosFrequenciaDaTela();
+            sendResponse({
+              sucesso: true,
+              turma: metadados.turma,
+              turmaCompleta: metadados.turmaCompleta,
+              componente: metadados.componente,
+              escola: metadados.escola,
+              totalAlunos: alunos.length,
+              alunos: alunos.map(a => a.nome)
+            });
+            break;
+          }
+
           default:
             sendResponse({ sucesso: false, erro: `Ação '${request.tipo}' não reconhecida.` });
         }
@@ -1306,10 +1883,28 @@
     chrome.runtime.onMessage.addListener(listener);
   }
 
+  // Inicialização automática de recursos na página do SIGEduc
+  if (typeof document !== "undefined" && typeof window !== "undefined") {
+    const autoInit = () => {
+      const tela = detectarTela();
+      if (tela === "frequencia_dia") {
+        injetarBarraFrequenciaNaTela();
+      }
+      verificarEExecutarFilaLote();
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", autoInit);
+    } else {
+      setTimeout(autoInit, 300);
+    }
+  }
+
   const api = {
     VERSAO_CONTENT,
     limparNomeAluno,
     detectarTela,
+    eTabelaCalendario,
     obterTabelaAtiva,
     extrairCabecalhosTabela,
     extrairNomeDaLinha,
@@ -1323,7 +1918,15 @@
     dispararRecalculoLinha,
     preencherNotasNaTela,
     preencherFVNaTela,
-    submeterComSenha
+    submeterComSenha,
+    extrairAlunosFrequenciaDaTela,
+    marcarPresencaTodos,
+    marcarFaltososPorLista,
+    marcarFaltososPorMapaData,
+    encontrarEClicarDiaNoCalendario,
+    voltarParaCalendario,
+    verificarEExecutarFilaLote,
+    injetarBarraFrequenciaNaTela
   };
 
   if (typeof root !== "undefined") {

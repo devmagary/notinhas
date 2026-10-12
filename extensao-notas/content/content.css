@@ -102,3 +102,161 @@ tr.sgn-linha-sem-par {
     transform: translateY(0) scale(1);
   }
 }
+
+/* ==========================================================================
+   Barra Rápida de Frequência no SIGEduc (#sgn-barra-frequencia)
+   ========================================================================== */
+.sgn-barra-frequencia {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+  border: 1px solid #cbd5e1;
+  border-left: 5px solid #2563eb;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+}
+
+.sgn-barra-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1e293b;
+}
+
+.sgn-barra-icon {
+  font-size: 18px;
+}
+
+.sgn-barra-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sgn-barra-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sgn-barra-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sgn-barra-input {
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  outline: none;
+  min-width: 220px;
+  background: #ffffff;
+  color: #1e293b;
+}
+
+.sgn-barra-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.sgn-btn-barra-verde {
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sgn-btn-barra-verde:hover {
+  background: #059669;
+}
+
+.sgn-btn-barra-laranja {
+  background: #f59e0b;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sgn-btn-barra-laranja:hover {
+  background: #d97706;
+}
+
+.sgn-btn-barra-cinza {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sgn-btn-barra-cinza:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+/* Widget Flutuante de Progresso de Lote */
+#sgn-progresso-lote {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999999;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-left: 5px solid #3b82f6;
+  border-radius: 10px;
+  padding: 12px 18px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  color: #1e293b;
+  animation: sgnSlideIn 0.3s ease;
+}
+
+#sgn-progresso-lote .sgn-prog-text {
+  font-weight: 600;
+}
+
+#sgn-progresso-lote .sgn-btn-cancelar-lote {
+  background: #ef4444;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#sgn-progresso-lote .sgn-btn-cancelar-lote:hover {
+  background: #dc2626;
+}
+

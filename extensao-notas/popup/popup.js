@@ -16,13 +16,20 @@
   let unidadeSelecionada = 1;
   let filtroLogAtual = "todos";
 
+  // Estado da aba de Frequência
+  let workbookFreq = null;
+  let dadosFreqExtraidos = null;
+  let abaFreqAtual = "";
+
   // =========================================================================
   // 1. Elementos do DOM
   // =========================================================================
   // Navegação
   const tabNavLancamento = document.getElementById("tab-nav-lancamento");
+  const tabNavFrequencia = document.getElementById("tab-nav-frequencia");
   const tabNavLogs = document.getElementById("tab-nav-logs");
   const viewLancamento = document.getElementById("view-lancamento");
+  const viewFrequencia = document.getElementById("view-frequencia");
   const viewLogs = document.getElementById("view-logs");
   const badgeLogCount = document.getElementById("badge-log-count");
 
@@ -30,6 +37,38 @@
   const elStatusConexao = document.getElementById("status-conexao");
   const elStatusTexto = document.getElementById("status-conexao-texto");
   const btnRecarregarStatus = document.getElementById("btn-recarregar-status");
+
+  // Status Conexão Frequência
+  const elStatusConexaoFreq = document.getElementById("status-conexao-freq");
+  const elStatusTextoFreq = document.getElementById("status-conexao-freq-texto");
+
+  // Elementos Frequência - Opção 1: Chamada Rápida
+  const btnFreqTodosPresentes = document.getElementById("btn-freq-todos-presentes");
+  const inputFreqFaltosos = document.getElementById("input-freq-faltosos");
+  const btnFreqMarcarFaltosos = document.getElementById("btn-freq-marcar-faltosos");
+
+  // Elementos Frequência - Opção 2: Excel
+  const dropZoneFreq = document.getElementById("drop-zone-freq");
+  const inputArquivoFreq = document.getElementById("input-arquivo-freq");
+  const boxArquivoInfoFreq = document.getElementById("arquivo-info-freq");
+  const txtNomeArquivoFreq = document.getElementById("txt-nome-arquivo-freq");
+  const btnRemoverArquivoFreq = document.getElementById("btn-remover-arquivo-freq");
+  const selectAbaFreq = document.getElementById("select-aba-freq");
+  const selectColNomeFreq = document.getElementById("select-col-nome-freq");
+  const listaDatasDetectadas = document.getElementById("lista-datas-detectadas");
+  const selectDataAtivaFreq = document.getElementById("select-data-ativa-freq");
+  const btnLancarDataEspecifica = document.getElementById("btn-lancar-data-especifica");
+  const boxGerarModeloFreq = document.getElementById("box-gerar-modelo-freq");
+  const txtModeloFreqDesc = document.getElementById("txt-modelo-freq-desc");
+  const btnBaixarModeloFreqPopup = document.getElementById("btn-baixar-modelo-freq-popup");
+
+  // Elementos Frequência - Seção 3: Lote no Calendário
+  const chkAutoGravarFreq = document.getElementById("chk-auto-gravar-freq");
+  const boxSenhaFreq = document.getElementById("box-senha-freq");
+  const inputSenhaFreq = document.getElementById("input-senha-freq");
+  const btnIniciarLoteCalendario = document.getElementById("btn-iniciar-lote-calendario");
+  const btnCancelarLoteCalendario = document.getElementById("btn-cancelar-lote-calendario");
+  const msgStatusFreq = document.getElementById("mensagem-status-freq");
 
   // Passo 1: Excel
   const dropZone = document.getElementById("drop-zone");
@@ -334,11 +373,28 @@
     elStatusConexao.className = `sgn-badge sgn-badge-${tipo}`;
   }
 
+  function definirStatusFreq(mensagem, tipo = "aviso") {
+    if (elStatusTextoFreq) elStatusTextoFreq.textContent = mensagem;
+    if (elStatusConexaoFreq) elStatusConexaoFreq.className = `sgn-badge sgn-badge-${tipo}`;
+  }
+
   function processarEstadoTela(estado) {
     diagTelaDetectada.textContent = formatarNomeTela(estado.tela);
-    diagAlunosTela.textContent = `${estado.qtdAlunosTela} na tabela`;
+    diagAlunosTela.textContent = `${estado.qtdAlunosTela || estado.totalAlunos || 0} na tabela`;
 
-    if (estado.tela === "notas") {
+    if (estado.tela === "frequencia_dia") {
+      definirStatus(`🟢 Chamada do Dia detectada: ${estado.qtdAlunosTela || estado.totalAlunos || 0} estudantes.`, "sucesso");
+      definirStatusFreq(`🟢 Chamada do Dia detectada: ${estado.qtdAlunosTela || estado.totalAlunos || 0} estudantes.`, "sucesso");
+      alternarView("view-frequencia");
+      const turmaLabel = estado.turma ? `Turma: ${estado.turma}` : "Turma detectada";
+      if (txtModeloFreqDesc) {
+        txtModeloFreqDesc.textContent = `${turmaLabel} (${estado.qtdAlunosTela || estado.totalAlunos || 0} estudantes) • Baixe a planilha pronta com a lista de chamada.`;
+      }
+    } else if (estado.tela === "frequencia_calendario") {
+      definirStatus("🟢 Calendário Mensal de Frequência aberto.", "sucesso");
+      definirStatusFreq("🟢 Calendário Mensal detectado. Carregue a planilha para lançar em lote.", "sucesso");
+      alternarView("view-frequencia");
+    } else if (estado.tela === "notas") {
       definirStatus(`🟢 Tela de Notas detectada: ${estado.qtdAlunosTela} estudantes na ${estado.unidadeAtiva}ª Unidade.`, "sucesso");
       selecionarUnidadeUI(estado.unidadeAtiva);
       btnPreencherFV.style.display = "none";
@@ -352,11 +408,11 @@
       btnPreencherFV.style.display = "block";
       if (boxGerarModelo) boxGerarModelo.style.display = "none";
     } else if (estado.tela === "turmas") {
-      definirStatus("🟡 Painel de turmas aberto. Clique em 'Lançar Notas' na turma desejada.", "aviso");
+      definirStatus("🟡 Painel de turmas aberto. Clique em 'Lançar Notas' ou 'Frequência'.", "aviso");
       btnPreencherFV.style.display = "none";
       if (boxGerarModelo) boxGerarModelo.style.display = "none";
     } else {
-      definirStatus("🟡 Navegue até a tela de lançamento de notas no SIGEduc.", "aviso");
+      definirStatus("🟡 Navegue até a tela de notas ou frequência no SIGEduc.", "aviso");
       btnPreencherFV.style.display = "none";
       if (boxGerarModelo) boxGerarModelo.style.display = "none";
     }
@@ -368,6 +424,8 @@
     switch (tela) {
       case "notas": return "Lançar Notas";
       case "fv": return "Falta Vinculada (FV)";
+      case "frequencia_dia": return "Chamada do Dia";
+      case "frequencia_calendario": return "Calendário Mensal";
       case "turmas": return "Minhas Turmas";
       default: return "Outra Tela";
     }
@@ -844,22 +902,313 @@
   }
 
   // =========================================================================
+  // 7.5 Fluxo de Lançamento de Frequência & Calendário
+  // =========================================================================
+  function mostrarMensagemFreq(texto, tipo = "sucesso") {
+    if (!msgStatusFreq) return;
+    msgStatusFreq.textContent = texto;
+    msgStatusFreq.className = `sgn-msg-box ${tipo}`;
+    msgStatusFreq.style.display = "block";
+  }
+
+  async function executarChamadaRapidaTodos() {
+    Logger.info("Executando chamada rápida: 100% Presentes...");
+    btnFreqTodosPresentes.disabled = true;
+    try {
+      const res = await enviarMensagemSegura("MARCAR_FREQUENCIA_TODOS");
+      if (res.sucesso && res.dados && res.dados.sucesso) {
+        mostrarMensagemFreq(`✅ ${res.dados.mensagem}`, "sucesso");
+        Logger.sucesso(res.dados.mensagem);
+      } else {
+        const err = res.dados ? res.dados.erro : (res.erro || "Falha");
+        mostrarMensagemFreq(`Erro ao atribuir presenças: ${err}`, "erro");
+        Logger.erro(`Falha em 100% Presentes: ${err}`);
+      }
+    } catch (e) {
+      mostrarMensagemFreq(`Erro: ${e.message}`, "erro");
+    } finally {
+      btnFreqTodosPresentes.disabled = false;
+    }
+  }
+
+  async function executarChamadaRapidaFaltosos() {
+    const val = inputFreqFaltosos.value.trim();
+    if (!val) {
+      mostrarMensagemFreq("Digite ou cole ao menos um nome de estudante faltoso.", "aviso");
+      return;
+    }
+
+    const nomes = val.split(/[,;\n\r]+/).map(n => n.trim()).filter(Boolean);
+    Logger.info(`Marcando faltas para ${nomes.length} estudantes informados...`);
+    btnFreqMarcarFaltosos.disabled = true;
+
+    try {
+      const res = await enviarMensagemSegura("MARCAR_FREQUENCIA_FALTOSOS", { nomesFaltosos: nomes });
+      if (res.sucesso && res.dados && res.dados.sucesso) {
+        mostrarMensagemFreq(`✅ ${res.dados.mensagem}`, "sucesso");
+        Logger.sucesso(res.dados.mensagem);
+      } else {
+        const err = res.dados ? res.dados.erro : (res.erro || "Falha");
+        mostrarMensagemFreq(`Erro ao marcar faltosos: ${err}`, "erro");
+        Logger.erro(`Falha ao marcar faltosos: ${err}`);
+      }
+    } catch (e) {
+      mostrarMensagemFreq(`Erro: ${e.message}`, "erro");
+    } finally {
+      btnFreqMarcarFaltosos.disabled = false;
+    }
+  }
+
+  function carregarArquivoFrequencia(arquivo) {
+    if (!arquivo) return;
+    if (!arquivo.name.endsWith(".xlsx") && !arquivo.name.endsWith(".xls")) {
+      mostrarMensagemFreq("Por favor, selecione um arquivo Excel válido (.xlsx ou .xls).", "erro");
+      return;
+    }
+
+    Logger.info(`Carregando planilha de frequência: ${arquivo.name}...`);
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const resWB = window.SgnExcel.carregarWorkbook(data, window.XLSX);
+        workbookFreq = resWB.workbook;
+
+        txtNomeArquivoFreq.textContent = arquivo.name;
+        dropZoneFreq.style.display = "none";
+        boxArquivoInfoFreq.style.display = "block";
+
+        selectAbaFreq.innerHTML = "";
+        resWB.abas.forEach(nomeAba => {
+          const opt = document.createElement("option");
+          opt.value = nomeAba;
+          opt.textContent = nomeAba;
+          selectAbaFreq.appendChild(opt);
+        });
+
+        abaFreqAtual = resWB.abas[0] || "";
+        processarAbaFrequencia(abaFreqAtual);
+      } catch (err) {
+        Logger.erro(`Erro ao processar arquivo de frequência: ${err.message}`);
+        mostrarMensagemFreq(`Erro ao processar planilha: ${err.message}`, "erro");
+      }
+    };
+    reader.readAsArrayBuffer(arquivo);
+  }
+
+  function processarAbaFrequencia(nomeAba) {
+    if (!workbookFreq || !nomeAba) return;
+    try {
+      const info = window.SgnExcel.inspecionarAba(workbookFreq, nomeAba, window.XLSX);
+      selectColNomeFreq.innerHTML = "";
+      info.colunas.forEach(col => {
+        const opt = document.createElement("option");
+        opt.value = col.letra;
+        opt.textContent = `Coluna ${col.letra}: ${col.titulo}`;
+        if (col.letra === info.colunaNomeSugerida) opt.selected = true;
+        selectColNomeFreq.appendChild(opt);
+      });
+
+      const colNome = selectColNomeFreq.value || info.colunaNomeSugerida || "A";
+      dadosFreqExtraidos = window.SgnExcel.extrairDadosFrequencia(workbookFreq, nomeAba, {
+        colunaNome: colNome,
+        XLSX_LIB: window.XLSX
+      });
+
+      listaDatasDetectadas.innerHTML = "";
+      selectDataAtivaFreq.innerHTML = "";
+
+      if (dadosFreqExtraidos.datas && dadosFreqExtraidos.datas.length > 0) {
+        dadosFreqExtraidos.datas.forEach(dataStr => {
+          const pill = document.createElement("span");
+          pill.className = "sgn-pill-data";
+          pill.textContent = `📅 ${dataStr}`;
+          listaDatasDetectadas.appendChild(pill);
+
+          const opt = document.createElement("option");
+          opt.value = dataStr;
+          opt.textContent = `Aula de ${dataStr}`;
+          selectDataAtivaFreq.appendChild(opt);
+        });
+
+        btnLancarDataEspecifica.disabled = false;
+        btnIniciarLoteCalendario.disabled = false;
+        Logger.sucesso(`Planilha de frequência processada: ${dadosFreqExtraidos.datas.length} datas detectadas para ${dadosFreqExtraidos.totalAlunos} estudantes.`);
+      } else {
+        listaDatasDetectadas.innerHTML = '<span class="sgn-hint">Nenhuma coluna com padrão de data (DD/MM) encontrada.</span>';
+        btnLancarDataEspecifica.disabled = true;
+        btnIniciarLoteCalendario.disabled = true;
+      }
+    } catch (err) {
+      Logger.erro(`Erro ao extrair frequência da aba '${nomeAba}': ${err.message}`);
+      mostrarMensagemFreq(`Erro ao extrair frequência: ${err.message}`, "erro");
+    }
+  }
+
+  function removerArquivoFrequencia() {
+    workbookFreq = null;
+    dadosFreqExtraidos = null;
+    inputArquivoFreq.value = "";
+    boxArquivoInfoFreq.style.display = "none";
+    dropZoneFreq.style.display = "flex";
+    listaDatasDetectadas.innerHTML = "";
+    selectDataAtivaFreq.innerHTML = "";
+    btnIniciarLoteCalendario.disabled = true;
+    Logger.info("Planilha de frequência removida.");
+  }
+
+  async function executarLancarDataEspecifica() {
+    if (!dadosFreqExtraidos) {
+      mostrarMensagemFreq("Nenhuma planilha de frequência carregada.", "aviso");
+      return;
+    }
+
+    const dataSel = selectDataAtivaFreq.value;
+    if (!dataSel) {
+      mostrarMensagemFreq("Selecione uma data para lançar.", "aviso");
+      return;
+    }
+
+    const mapaData = {};
+    dadosFreqExtraidos.alunos.forEach(a => {
+      mapaData[a.nome] = a.frequenciaPorData[dataSel] || "P";
+    });
+
+    Logger.info(`Aplicando frequência da data ${dataSel} na tela atual...`);
+    btnLancarDataEspecifica.disabled = true;
+
+    try {
+      const res = await enviarMensagemSegura("MARCAR_FREQUENCIA_EXCEL", { mapaAlunosData: mapaData });
+      if (res.sucesso && res.dados && res.dados.sucesso) {
+        mostrarMensagemFreq(`✅ ${res.dados.mensagem}`, "sucesso");
+        Logger.sucesso(res.dados.mensagem);
+      } else {
+        const err = res.dados ? res.dados.erro : (res.erro || "Falha");
+        mostrarMensagemFreq(`Erro ao lançar frequência: ${err}`, "erro");
+        Logger.erro(`Falha ao lançar frequência da data ${dataSel}: ${err}`);
+      }
+    } catch (e) {
+      mostrarMensagemFreq(`Erro: ${e.message}`, "erro");
+    } finally {
+      btnLancarDataEspecifica.disabled = false;
+    }
+  }
+
+  async function executarIniciarLoteCalendario() {
+    if (!dadosFreqExtraidos || !dadosFreqExtraidos.datas || !dadosFreqExtraidos.datas.length) {
+      mostrarMensagemFreq("Carregue uma planilha com colunas de datas antes de iniciar o lote.", "aviso");
+      return;
+    }
+
+    const autoGravar = chkAutoGravarFreq ? chkAutoGravarFreq.checked : true;
+    const senha = (inputSenhaFreq ? inputSenhaFreq.value : "").trim();
+
+    if (autoGravar && !senha) {
+      mostrarMensagemFreq("Por favor, digite a sua senha do SIGEduc para confirmar o lote com gravação automática.", "aviso");
+      if (inputSenhaFreq) inputSenhaFreq.focus();
+      return;
+    }
+
+    const dadosPorData = {};
+    dadosFreqExtraidos.datas.forEach(d => {
+      dadosPorData[d] = {};
+      dadosFreqExtraidos.alunos.forEach(a => {
+        dadosPorData[d][a.nome] = a.frequenciaPorData[d] || "P";
+      });
+    });
+
+    Logger.info(`Iniciando lote no calendário para ${dadosFreqExtraidos.datas.length} datas...`);
+    btnIniciarLoteCalendario.disabled = true;
+
+    try {
+      const res = await enviarMensagemSegura("INICIAR_LOTE_CALENDARIO", {
+        filaDatas: dadosFreqExtraidos.datas,
+        dadosFrequenciaPorData: dadosPorData,
+        autoGravar,
+        senha
+      });
+
+      if (res.sucesso && res.dados && res.dados.sucesso) {
+        mostrarMensagemFreq(`🚀 Lote iniciado para as datas: ${dadosFreqExtraidos.datas.join(", ")}!\nAcompanhe o progresso na página do SIGEduc.`, "sucesso", 8000);
+        if (btnCancelarLoteCalendario) btnCancelarLoteCalendario.style.display = "block";
+        Logger.sucesso(`Lote de calendário iniciado com sucesso.`);
+      } else {
+        const err = res.dados ? res.dados.erro : (res.erro || "Falha");
+        mostrarMensagemFreq(`Erro ao iniciar lote: ${err}`, "erro");
+        btnIniciarLoteCalendario.disabled = false;
+      }
+    } catch (e) {
+      mostrarMensagemFreq(`Erro: ${e.message}`, "erro");
+      btnIniciarLoteCalendario.disabled = false;
+    }
+  }
+
+  async function executarCancelarLoteCalendario() {
+    Logger.info("Cancelamento de lote solicitado...");
+    await enviarMensagemSegura("CANCELAR_LOTE_CALENDARIO");
+    if (btnCancelarLoteCalendario) btnCancelarLoteCalendario.style.display = "none";
+    if (btnIniciarLoteCalendario) btnIniciarLoteCalendario.disabled = false;
+    mostrarMensagemFreq("Lote cancelado com sucesso.", "aviso");
+  }
+
+  async function executarDownloadModeloFrequenciaPopup() {
+    try {
+      btnBaixarModeloFreqPopup.disabled = true;
+      btnBaixarModeloFreqPopup.innerHTML = "<span>⏳ Extraindo dados da tela...</span>";
+
+      const res = await enviarMensagemSegura("OBTER_DADOS_MODELO_FREQUENCIA");
+      const dadosTurma = (res.sucesso && res.dados) ? res.dados : { turma: "Turma", alunos: [] };
+
+      const resultado = window.SgnExcel.gerarPlanilhaModeloFrequencia(dadosTurma, {
+        XLSX_LIB: window.XLSX
+      });
+
+      const blob = new Blob([resultado.arrayBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = resultado.nomeArquivo;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+      Logger.sucesso(`Modelo de frequência '${resultado.nomeArquivo}' baixado com sucesso!`);
+      mostrarMensagemFreq(`📥 Modelo '${resultado.nomeArquivo}' baixado!\nMarque as faltas na planilha e selecione o arquivo aqui.`, "sucesso", 8000);
+    } catch (err) {
+      Logger.erro(`Falha ao gerar modelo de frequência: ${err.message}`);
+      mostrarMensagemFreq(`Erro ao gerar modelo: ${err.message}`, "erro");
+    } finally {
+      btnBaixarModeloFreqPopup.disabled = false;
+      btnBaixarModeloFreqPopup.innerHTML = "<span>✨ Baixar Planilha Modelo (.xlsx)</span>";
+    }
+  }
+
+  // =========================================================================
   // 8. Utilitários e Eventos de UI
   // =========================================================================
   function alternarView(viewId) {
+    viewLancamento.style.display = "none";
+    if (viewFrequencia) viewFrequencia.style.display = "none";
+    viewLogs.style.display = "none";
+
+    tabNavLancamento.classList.remove("active");
+    if (tabNavFrequencia) tabNavFrequencia.classList.remove("active");
+    tabNavLogs.classList.remove("active");
+
     if (viewId === "view-logs") {
-      viewLancamento.style.display = "none";
       viewLogs.style.display = "flex";
-      tabNavLancamento.classList.remove("active");
       tabNavLogs.classList.add("active");
-      // Ao abrir os logs, limpa o badge de erros
       Logger.errosCount = 0;
       Logger.atualizarBadge();
       logTerminal.scrollTop = logTerminal.scrollHeight;
+    } else if (viewId === "view-frequencia") {
+      if (viewFrequencia) viewFrequencia.style.display = "block";
+      if (tabNavFrequencia) tabNavFrequencia.classList.add("active");
     } else {
-      viewLogs.style.display = "none";
-      viewLancamento.style.display = "flex";
-      tabNavLogs.classList.remove("active");
+      viewLancamento.style.display = "block";
       tabNavLancamento.classList.add("active");
     }
   }
@@ -882,7 +1231,68 @@
   function configurarEventosUI() {
     // Navegação entre Abas do Popup
     tabNavLancamento.addEventListener("click", () => alternarView("view-lancamento"));
+    if (tabNavFrequencia) tabNavFrequencia.addEventListener("click", () => alternarView("view-frequencia"));
     tabNavLogs.addEventListener("click", () => alternarView("view-logs"));
+
+    // Eventos da Aba de Frequência - Opção 1: Chamada Rápida
+    if (btnFreqTodosPresentes) {
+      btnFreqTodosPresentes.addEventListener("click", executarChamadaRapidaTodos);
+    }
+    if (btnFreqMarcarFaltosos) {
+      btnFreqMarcarFaltosos.addEventListener("click", executarChamadaRapidaFaltosos);
+    }
+
+    // Eventos da Aba de Frequência - Opção 2: Excel
+    if (dropZoneFreq && inputArquivoFreq) {
+      dropZoneFreq.addEventListener("click", () => inputArquivoFreq.click());
+      inputArquivoFreq.addEventListener("change", (e) => {
+        if (e.target.files && e.target.files[0]) carregarArquivoFrequencia(e.target.files[0]);
+      });
+
+      dropZoneFreq.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZoneFreq.classList.add("drag-over");
+      });
+      dropZoneFreq.addEventListener("dragleave", () => dropZoneFreq.classList.remove("drag-over"));
+      dropZoneFreq.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZoneFreq.classList.remove("drag-over");
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) carregarArquivoFrequencia(e.dataTransfer.files[0]);
+      });
+    }
+
+    if (btnRemoverArquivoFreq) {
+      btnRemoverArquivoFreq.addEventListener("click", removerArquivoFrequencia);
+    }
+
+    if (selectAbaFreq) {
+      selectAbaFreq.addEventListener("change", () => {
+        abaFreqAtual = selectAbaFreq.value;
+        processarAbaFrequencia(abaFreqAtual);
+      });
+    }
+
+    if (selectColNomeFreq) {
+      selectColNomeFreq.addEventListener("change", () => {
+        if (abaFreqAtual) processarAbaFrequencia(abaFreqAtual);
+      });
+    }
+
+    if (btnLancarDataEspecifica) {
+      btnLancarDataEspecifica.addEventListener("click", executarLancarDataEspecifica);
+    }
+
+    if (btnBaixarModeloFreqPopup) {
+      btnBaixarModeloFreqPopup.addEventListener("click", executarDownloadModeloFrequenciaPopup);
+    }
+
+    // Eventos da Aba de Frequência - Seção 3: Lote no Calendário
+    if (btnIniciarLoteCalendario) {
+      btnIniciarLoteCalendario.addEventListener("click", executarIniciarLoteCalendario);
+    }
+    if (btnCancelarLoteCalendario) {
+      btnCancelarLoteCalendario.addEventListener("click", executarCancelarLoteCalendario);
+    }
 
     btnRecarregarStatus.addEventListener("click", () => {
       Logger.info("Recarregamento de status solicitado pelo usuário.");

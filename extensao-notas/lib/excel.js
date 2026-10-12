@@ -136,7 +136,11 @@
    * Inspeciona uma aba especifica e retorna as colunas detectadas e pre-visualizacao das linhas.
    */
   function inspecionarAba(workbook, nomeAba, XLSX_LIB) {
-    const xlsx = XLSX_LIB || (typeof XLSX !== "undefined" ? XLSX : null);
+    const xlsx = (XLSX_LIB && XLSX_LIB.utils)
+      ? XLSX_LIB
+      : (XLSX_LIB && XLSX_LIB.XLSX_LIB)
+        ? XLSX_LIB.XLSX_LIB
+        : (typeof XLSX !== "undefined" ? XLSX : null);
     const sheet = workbook.Sheets[nomeAba || workbook.SheetNames[0]];
     if (!sheet) {
       throw new Error(`Aba '${nomeAba}' não encontrada.`);
@@ -469,18 +473,239 @@
     };
   }
 
+  /**
+   * Verifica se o valor da celula representa Falta (F, X, 1, falta, etc.)
+   */
+  function ehFalta(val) {
+    if (val === null || val === undefined) return false;
+    const txt = String(val).replace(/\u00A0/g, " ").trim().toLowerCase();
+    if (txt === "" || txt === "p" || txt === "pres" || txt === "presente" || txt === "." || txt === "0" || txt === "sim" || txt === "s") {
+      return false;
+    }
+    if (txt === "f" || txt === "x" || txt === "1" || txt === "falta" || txt === "faltou" || txt === "ausente" || txt === "não" || txt === "nao" || txt === "n") {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Tenta normalizar uma string ou valor de cabeçalho para o formato de data DD/MM
+   */
+  function normalizarDataCabecalho(val) {
+    if (val === null || val === undefined) return null;
+    if (val instanceof Date) {
+      const d = String(val.getDate()).padStart(2, "0");
+      const m = String(val.getMonth() + 1).padStart(2, "0");
+      return `${d}/${m}`;
+    }
+    const txt = String(val).trim();
+    // Ex: "04/03", "4/3", "04/03/2024", "11-03", "18/03 (2 aulas)"
+    const match = txt.match(/\b0?([1-9]|[12][0-9]|3[01])[\/\-\.]0?([1-9]|1[0-2])(?:\/\d{2,4})?\b/);
+    if (match) {
+      const d = String(match[1]).padStart(2, "0");
+      const m = String(match[2]).padStart(2, "0");
+      return `${d}/${m}`;
+    }
+    return null;
+  }
+
+  /**
+   * Extrai dados de frequência de uma aba do Excel.
+   * Identifica colunas com datas no cabeçalho e classifica presenças e faltas por aluno.
+   */
+  function extrairDadosFrequencia(workbook, nomeAba, opcoes = {}) {
+    const xlsx = opcoes.XLSX_LIB || (typeof XLSX !== "undefined" ? XLSX : null);
+    if (!xlsx) throw new Error("Biblioteca SheetJS (XLSX) não encontrada.");
+
+    const infoAba = inspecionarAba(workbook, nomeAba, opcoes);
+    const sheet = workbook.Sheets[nomeAba || workbook.SheetNames[0]];
+    const matriz = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    if (!matriz || !matriz.length) {
+      return { sucesso: false, erro: "Planilha vazia." };
+    }
+
+    const idxCabecalho = encontrarLinhaCabecalho(matriz);
+    const linhaCabecalho = matriz[idxCabecalho] || [];
+    const idxColNome = letraParaIndice(opcoes.colunaNome || infoAba.colunaNomeSugerida || "A");
+
+    // Detecta todas as colunas que representam datas
+    const colunasDatas = [];
+    for (let c = 0; c < linhaCabecalho.length; c++) {
+      if (c === idxColNome) continue;
+      const tit = linhaCabecalho[c];
+      const dataFormatada = normalizarDataCabecalho(tit);
+      if (dataFormatada) {
+        colunasDatas.push({
+          indiceColuna: c,
+          letra: indiceParaLetra(c),
+          data: dataFormatada,
+          tituloOriginal: String(tit).trim()
+        });
+      }
+    }
+
+    // Se nenhuma coluna foi detectada com padrão de data, considera as colunas sugeridas
+    if (!colunasDatas.length && infoAba.colunasNotasSugeridasDetalhes) {
+      infoAba.colunasNotasSugeridasDetalhes.forEach(col => {
+        colunasDatas.push({
+          indiceColuna: letraParaIndice(col.letra),
+          letra: col.letra,
+          data: col.titulo,
+          tituloOriginal: col.titulo
+        });
+      });
+    }
+
+    const alunos = [];
+    for (let r = idxCabecalho + 1; r < matriz.length; r++) {
+      const linha = matriz[r];
+      if (!linha || !linha.length) continue;
+
+      const nomeBruto = String(linha[idxColNome] || "").trim();
+      if (!nomeBruto || nomeBruto.length < 3) continue;
+
+      // Pula totais ou cabeçalhos acidentais
+      const nomeUpper = nomeBruto.toUpperCase();
+      if (nomeUpper.includes("TOTAL") || nomeUpper.includes("MÉDIA") || nomeUpper.includes("MEDIA") || nomeUpper.includes("PROFESSOR")) {
+        continue;
+      }
+
+      const frequenciaPorData = {};
+      let totalFaltas = 0;
+
+      colunasDatas.forEach(col => {
+        const val = linha[col.indiceColuna];
+        const falta = ehFalta(val);
+        frequenciaPorData[col.data] = falta ? "F" : "P";
+        if (falta) totalFaltas++;
+      });
+
+      alunos.push({
+        indiceLinha: r + 1,
+        nome: nomeBruto,
+        frequenciaPorData,
+        totalFaltasCalculadas: totalFaltas
+      });
+    }
+
+    return {
+      sucesso: true,
+      colunasDatas,
+      datas: colunasDatas.map(c => c.data),
+      totalAlunos: alunos.length,
+      alunos
+    };
+  }
+
+  /**
+   * Gera um modelo Excel (.xlsx) para Frequência Escolar contendo:
+   * - Coluna de Nº
+   * - Coluna de Nome do Estudante
+   * - Colunas com as datas das aulas
+   * - Markboxes (células para marcar F ou X)
+   * - Coluna de Total de Faltas com fórmula automática COUNTIF
+   */
+  function gerarPlanilhaModeloFrequencia(dadosTurma, opcoes = {}) {
+    const xlsx = opcoes.XLSX_LIB || (typeof XLSX !== "undefined" ? XLSX : null);
+    if (!xlsx) {
+      throw new Error("Biblioteca SheetJS (XLSX) não encontrada.");
+    }
+
+    const turmaNome = (dadosTurma && dadosTurma.turma) ? String(dadosTurma.turma).trim() : "Turma";
+    const componente = (dadosTurma && dadosTurma.componente) ? String(dadosTurma.componente).trim() : "";
+    const alunos = (dadosTurma && Array.isArray(dadosTurma.alunos)) ? dadosTurma.alunos : [];
+    
+    // Datas das aulas (se não fornecidas, sugere 8 aulas com intervalo de 7 dias ou padrão)
+    let datas = (dadosTurma && Array.isArray(dadosTurma.datas) && dadosTurma.datas.length)
+      ? dadosTurma.datas
+      : ["04/03", "11/03", "18/03", "25/03", "01/04", "08/04", "15/04", "22/04"];
+
+    const wb = xlsx.utils.book_new();
+
+    // 1. Cabeçalho: Nº | Nome do Estudante | [Datas...] | Total de Faltas
+    const cabecalhos = ["Nº", "Nome do Estudante", ...datas, "Total de Faltas"];
+    const linhas = [cabecalhos];
+
+    let maxNomeLen = "Nome do Estudante".length;
+
+    // 2. Linhas dos Estudantes
+    alunos.forEach((aluno, idxAluno) => {
+      const nome = typeof aluno === "string" ? aluno : (aluno && aluno.nome ? aluno.nome : `Estudante ${idxAluno + 1}`);
+      if (nome.length > maxNomeLen) maxNomeLen = nome.length;
+
+      const numLinha = idxAluno + 2; // linha 1 é cabeçalho, dados começam na linha 2
+      const linha = [idxAluno + 1, nome];
+
+      // Markbox em branco para cada dia
+      datas.forEach(() => {
+        linha.push("");
+      });
+
+      // Fórmula automática de Total de Faltas
+      if (datas.length > 0) {
+        const colIni = "C";
+        const colFim = indiceParaLetra(datas.length + 1); // ex: se 4 datas, C até F
+        linha.push({
+          f: `COUNTIF(${colIni}${numLinha}:${colFim}${numLinha}, "F") + COUNTIF(${colIni}${numLinha}:${colFim}${numLinha}, "X")`
+        });
+      } else {
+        linha.push(0);
+      }
+
+      linhas.push(linha);
+    });
+
+    const ws = xlsx.utils.aoa_to_sheet(linhas);
+
+    // 3. Ajuste de Larguras das Colunas (!cols)
+    const colWidths = [
+      { wch: 6 }, // Nº
+      { wch: Math.min(Math.max(28, maxNomeLen + 2), 55) } // Nome
+    ];
+    datas.forEach(() => {
+      colWidths.push({ wch: 10 }); // Dias
+    });
+    colWidths.push({ wch: 16 }); // Total de Faltas
+    ws["!cols"] = colWidths;
+
+    // 4. Nome da Aba Sanitizado
+    let sugestaoAba = `Freq_${turmaNome}`;
+    let nomeAba = sanitizarNomeAba(sugestaoAba);
+    xlsx.utils.book_append_sheet(wb, ws, nomeAba);
+
+    // 5. Geração do Arquivo Binário
+    const arrayBuffer = xlsx.write(wb, { bookType: "xlsx", type: "array" });
+
+    // 6. Nome Sugerido do Arquivo
+    const compSufixo = componente ? `_${componente.slice(0, 15)}` : "";
+    const nomeArquivo = sanitizarNomeArquivo(`Frequencia_${turmaNome}${compSufixo}.xlsx`);
+
+    return {
+      workbook: wb,
+      arrayBuffer: arrayBuffer,
+      nomeArquivo: nomeArquivo,
+      nomeAba: nomeAba,
+      totalAlunos: alunos.length,
+      datas: datas
+    };
+  }
+
   const api = {
     letraParaIndice,
     indiceParaLetra,
     ehFaltaVinculada,
+    ehFalta,
+    normalizarDataCabecalho,
     formatarNota,
     carregarWorkbook,
     encontrarLinhaCabecalho,
     inspecionarAba,
     extrairDadosNotas,
+    extrairDadosFrequencia,
     sanitizarNomeAba,
     sanitizarNomeArquivo,
-    gerarPlanilhaModelo
+    gerarPlanilhaModelo,
+    gerarPlanilhaModeloFrequencia
   };
 
   root.SgnExcel = api;
@@ -488,3 +713,4 @@
     module.exports = api;
   }
 })(typeof globalThis !== "undefined" ? globalThis : this);
+

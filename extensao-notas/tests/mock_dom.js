@@ -391,10 +391,114 @@ function montarTabelaTurma(doc, nomesAlunos, qtdAvaliacoes = 3, titulosAtividade
   return tabela;
 }
 
+/**
+ * Cria a tabela de frequência (#tableAlunos) no DOM simulado.
+ */
+function montarTabelaFrequencia(doc, nomesAlunos, opcoes = {}) {
+  doc.body.children = [];
+
+  const tabela = doc.createElement("table");
+  tabela.id = "tableAlunos";
+  tabela.className = "rich-table listagem";
+
+  const thead = doc.createElement("thead");
+  const trHead = doc.createElement("tr");
+  const thNum = doc.createElement("th"); thNum.innerText = "Nº"; trHead.appendChild(thNum);
+  const thMat = doc.createElement("th"); thMat.innerText = "Matrícula"; trHead.appendChild(thMat);
+  const thNome = doc.createElement("th"); thNome.innerText = "Nome do Aluno"; trHead.appendChild(thNome);
+
+  const qtdPeriodos = opcoes.qtdPeriodos || 1;
+  for (let p = 1; p <= qtdPeriodos; p++) {
+    const thA = doc.createElement("th");
+    thA.innerText = `Falta (Aula ${p})`;
+    trHead.appendChild(thA);
+  }
+  thead.appendChild(trHead);
+  tabela.appendChild(thead);
+
+  const tbody = doc.createElement("tbody");
+  const desabilitados = new Set(opcoes.alunosDesabilitados || []);
+
+  nomesAlunos.forEach((nome, idx) => {
+    const tr = doc.createElement("tr");
+    tr.id = `tableAlunos:${idx}`;
+
+    const tdNum = doc.createElement("td"); tdNum.innerText = String(idx + 1); tr.appendChild(tdNum);
+    const tdMat = doc.createElement("td"); tdMat.innerText = `2024${String(idx + 1).padStart(4, "0")}`; tr.appendChild(tdMat);
+
+    const tdNome = doc.createElement("td");
+    const aNome = doc.createElement("a");
+    aNome.innerText = nome;
+    tdNome.appendChild(aNome);
+    tr.appendChild(tdNome);
+
+    for (let p = 1; p <= qtdPeriodos; p++) {
+      const tdCb = doc.createElement("td");
+      const cb = doc.createElement("input");
+      cb.setAttribute("type", "checkbox");
+      cb.id = `tableAlunos:${idx}:chk_${p}`;
+      if (desabilitados.has(nome) || desabilitados.has(idx)) {
+        cb.disabled = true;
+        cb.setAttribute("disabled", "disabled");
+      }
+      tdCb.appendChild(cb);
+      tr.appendChild(tdCb);
+    }
+
+    tbody.appendChild(tr);
+  });
+
+  tabela.appendChild(tbody);
+  doc.body.appendChild(tabela);
+  return tabela;
+}
+
+/**
+ * Cria a tabela do calendário mensal no DOM simulado.
+ */
+function montarTabelaCalendario(doc, nomeMes = "Março", diasComAula = [4, 11, 18, 25]) {
+  const tabela = doc.createElement("table");
+  tabela.id = "calendarioFrequencia";
+
+  const thead = doc.createElement("thead");
+  const trMes = doc.createElement("tr");
+  const thMes = doc.createElement("th");
+  thMes.innerText = nomeMes.toUpperCase();
+  trMes.appendChild(thMes);
+  thead.appendChild(trMes);
+
+  const trDias = doc.createElement("tr");
+  ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"].forEach(d => {
+    const th = doc.createElement("th");
+    th.innerText = d;
+    trDias.appendChild(th);
+  });
+  thead.appendChild(trDias);
+  tabela.appendChild(thead);
+
+  const tbody = doc.createElement("tbody");
+  const tr = doc.createElement("tr");
+  diasComAula.forEach(dia => {
+    const td = doc.createElement("td");
+    const a = doc.createElement("a");
+    a.innerText = String(dia);
+    a.setAttribute("href", `#dia_${dia}`);
+    td.appendChild(a);
+    tr.appendChild(td);
+  });
+  tbody.appendChild(tr);
+  tabela.appendChild(tbody);
+
+  doc.body.appendChild(tabela);
+  return tabela;
+}
+
 module.exports = {
   ClassList,
   MockElement,
   MockDocument,
   criarAmbienteDOM,
-  montarTabelaTurma
+  montarTabelaTurma,
+  montarTabelaFrequencia,
+  montarTabelaCalendario
 };

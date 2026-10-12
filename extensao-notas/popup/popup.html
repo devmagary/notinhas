@@ -23,10 +23,13 @@
     <!-- Barra de Navegação de Abas -->
     <nav class="sgn-nav-tabs">
       <button type="button" class="sgn-nav-btn active" id="tab-nav-lancamento" data-view="view-lancamento">
-        <span>📋 Lançamento</span>
+        <span>📊 Notas & FV</span>
+      </button>
+      <button type="button" class="sgn-nav-btn" id="tab-nav-frequencia" data-view="view-frequencia">
+        <span>📅 Frequência</span>
       </button>
       <button type="button" class="sgn-nav-btn" id="tab-nav-logs" data-view="view-logs">
-        <span>📜 Logs & Diagnóstico</span>
+        <span>📜 Diagnóstico</span>
         <span id="badge-log-count" class="sgn-badge-pill" style="display: none;">0</span>
       </button>
     </nav>
@@ -222,7 +225,141 @@
     </main>
 
     <!-- =================================================================== -->
-    <!-- ABA 2: LOGS & DIAGNÓSTICO                                           -->
+    <!-- ABA 2: FLUXO DE FREQUÊNCIA & FALTAS                                 -->
+    <!-- =================================================================== -->
+    <main id="view-frequencia" class="sgn-view" style="display: none;">
+      <!-- Status da Conexão na Frequência -->
+      <div id="status-conexao-freq" class="sgn-badge sgn-badge-aviso">
+        <span class="sgn-badge-dot"></span>
+        <span id="status-conexao-freq-texto">Verificando frequência...</span>
+      </div>
+
+      <!-- OPÇÃO 1: CHAMADA RÁPIDA (Sem Planilha) -->
+      <section class="sgn-card">
+        <div class="sgn-card-header">
+          <span class="sgn-step-num">⚡</span>
+          <h2>Chamada Rápida (Sem Planilha)</h2>
+        </div>
+
+        <button type="button" id="btn-freq-todos-presentes" class="sgn-btn-primary" style="background: #10b981; margin-bottom: 12px;">
+          <span>🟢 100% Presentes (Dar Presença a Todos)</span>
+        </button>
+
+        <div class="sgn-field">
+          <label for="input-freq-faltosos">Quem faltou hoje? (Digite ou cole os nomes):</label>
+          <textarea id="input-freq-faltosos" class="sgn-input" rows="3" placeholder="Ex: Sabrina Oliveira, Luiz Gustavo, Thiago"></textarea>
+          <small class="sgn-hint">Separados por vírgula ou um por linha. Os demais receberão presença.</small>
+        </div>
+
+        <button type="button" id="btn-freq-marcar-faltosos" class="sgn-btn-secondary" style="margin-top: 6px;">
+          <span>✍️ Marcar Faltas da Lista</span>
+        </button>
+      </section>
+
+      <!-- OPÇÃO 2: COM PLANILHA EXCEL (.xlsx) -->
+      <section class="sgn-card">
+        <div class="sgn-card-header">
+          <span class="sgn-step-num">📊</span>
+          <h2>Planilha de Frequência (.xlsx)</h2>
+        </div>
+
+        <div id="drop-zone-freq" class="sgn-drop-zone">
+          <input type="file" id="input-arquivo-freq" accept=".xlsx, .xls" style="display: none;">
+          <span class="sgn-drop-icon">📁</span>
+          <div class="sgn-drop-text">
+            <strong>Clique para selecionar</strong> ou arraste a planilha aqui
+          </div>
+          <div class="sgn-drop-hint">Planilha de chamada com markbox de faltas (.xlsx)</div>
+        </div>
+
+        <!-- Botão: Baixar Modelo Excel de Frequência -->
+        <div id="box-gerar-modelo-freq" class="sgn-modelo-box" style="margin-top: 10px;">
+          <div class="sgn-modelo-conteudo">
+            <span class="sgn-modelo-icon">📥</span>
+            <div class="sgn-modelo-texto">
+              <strong>Precisa de uma planilha pronta?</strong>
+              <span id="txt-modelo-freq-desc">Gere um modelo Excel com todos os alunos e colunas de datas.</span>
+            </div>
+          </div>
+          <button type="button" id="btn-baixar-modelo-freq-popup" class="sgn-btn-outline" title="Baixa um modelo Excel com alunos e markboxes">
+            <span>✨ Baixar Planilha Modelo (.xlsx)</span>
+          </button>
+        </div>
+
+        <!-- Informações do Arquivo de Frequência Carregado -->
+        <div id="arquivo-info-freq" class="sgn-arquivo-info" style="display: none; margin-top: 12px;">
+          <div class="sgn-arquivo-detalhes">
+            <span class="sgn-arquivo-nome" id="txt-nome-arquivo-freq">frequencia.xlsx</span>
+            <button id="btn-remover-arquivo-freq" class="sgn-btn-link">Trocar</button>
+          </div>
+
+          <div class="sgn-grid-2">
+            <div class="sgn-field">
+              <label for="select-aba-freq">Aba / Turma:</label>
+              <select id="select-aba-freq" class="sgn-select"></select>
+            </div>
+            <div class="sgn-field">
+              <label for="select-col-nome-freq">Coluna dos Nomes:</label>
+              <select id="select-col-nome-freq" class="sgn-select"></select>
+            </div>
+          </div>
+
+          <!-- Datas detectadas na planilha -->
+          <div class="sgn-field" style="margin-top: 8px;">
+            <label>Datas detectadas na planilha:</label>
+            <div id="lista-datas-detectadas" class="sgn-pills-datas"></div>
+          </div>
+
+          <div class="sgn-field" style="margin-top: 8px;">
+            <label for="select-data-ativa-freq">Lançar data específica:</label>
+            <select id="select-data-ativa-freq" class="sgn-select"></select>
+          </div>
+
+          <button type="button" id="btn-lancar-data-especifica" class="sgn-btn-primary" style="margin-top: 8px;">
+            <span>🚀 Lançar Data Selecionada</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- SEÇÃO 3: AUTOMAÇÃO NO CALENDÁRIO (LOTE DE DATAS) -->
+      <section class="sgn-card" id="card-lote-calendario">
+        <div class="sgn-card-header">
+          <span class="sgn-step-num">🗓️</span>
+          <h2>Lançamento em Lote no Calendário</h2>
+        </div>
+
+        <p class="sgn-hint" style="margin-bottom: 10px;">
+          Navega dia por dia no calendário mensal do SIGEduc, preenche as faltas e grava automaticamente.
+        </p>
+
+        <div class="sgn-opcoes">
+          <label class="sgn-checkbox-label">
+            <input type="checkbox" id="chk-auto-gravar-freq" checked>
+            <span>Gravar e confirmar chamada automaticamente</span>
+          </label>
+
+          <div id="box-senha-freq" class="sgn-field" style="margin-top: 8px;">
+            <label for="input-senha-freq">Senha do SIGEduc:</label>
+            <input type="password" id="input-senha-freq" class="sgn-input" placeholder="Digite sua senha de gravação">
+            <small class="sgn-hint">A senha é utilizada apenas para confirmar a chamada nesta sessão.</small>
+          </div>
+        </div>
+
+        <button type="button" id="btn-iniciar-lote-calendario" class="sgn-btn-primary" style="margin-top: 10px;" disabled>
+          <span>🚀 Lançar Todas as Datas no Calendário</span>
+        </button>
+
+        <button type="button" id="btn-cancelar-lote-calendario" class="sgn-btn-danger" style="display: none; margin-top: 8px;">
+          <span>⏹️ Cancelar Lote em Andamento</span>
+        </button>
+
+        <!-- Feedback de status da frequência -->
+        <div id="mensagem-status-freq" class="sgn-msg-box" style="display: none; margin-top: 10px;"></div>
+      </section>
+    </main>
+
+    <!-- =================================================================== -->
+    <!-- ABA 3: LOGS & DIAGNÓSTICO                                           -->
     <!-- =================================================================== -->
     <main id="view-logs" class="sgn-view" style="display: none;">
       <!-- Card de Diagnóstico do Sistema -->

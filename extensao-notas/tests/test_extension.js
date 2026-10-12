@@ -14,7 +14,13 @@ const nomes = require("../lib/nomes.js");
 const excel = require("../lib/excel.js");
 const XLSX = require("../vendor/xlsx.full.min.js");
 global.XLSX = XLSX;
-const { criarAmbienteDOM, montarTabelaTurma } = require("./mock_dom.js");
+const {
+  criarAmbienteDOM,
+  montarTabelaTurma,
+  montarTabelaFrequencia,
+  montarTabelaCalendario
+} = require("./mock_dom.js");
+const content = require("../content/content.js");
 
 async function executarTodosOsTestes() {
   console.log("=== EXECUTANDO TESTES DA EXTENSÃO SIGEDUC NOTAS ===\n");
@@ -1111,6 +1117,158 @@ async function executarTodosOsTestes() {
     console.log("  ✓ Roundtrip 100% perfeito (Gerar Modelo -> Ler -> Mapear -> Casar) validado com sucesso.");
   }
 
+  // ----------------------------------------------------
+  // 5. Testes do Módulo de Frequência & Calendário
+  // ----------------------------------------------------
+  console.log("\n5. Testando módulo de Presenças e Faltas (Frequência & Calendário)...");
+
+  // 5.1 Validação de Helpers de Frequência no Excel
+  assert.strictEqual(excel.ehFalta("F"), true, "'F' deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta("f"), true, "'f' minúsculo deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta("X"), true, "'X' deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta("x"), true, "'x' minúsculo deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta("1"), true, "'1' deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta("falta"), true, "'falta' deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta("P"), false, "'P' deve ser reconhecido como Presença");
+  assert.strictEqual(excel.ehFalta("."), false, "'.' deve ser reconhecido como Presença");
+  assert.strictEqual(excel.ehFalta(""), false, "Célula vazia deve ser reconhecida como Presença");
+  assert.strictEqual(excel.ehFalta(null), false, "Célula nula deve ser reconhecida como Presença");
+
+  // 5.2 Validação de Normalização de Cabeçalho de Datas
+  assert.strictEqual(excel.normalizarDataCabecalho("04/03"), "04/03");
+  assert.strictEqual(excel.normalizarDataCabecalho("4/3"), "04/03");
+  assert.strictEqual(excel.normalizarDataCabecalho("11/03/2024"), "11/03");
+  assert.strictEqual(excel.normalizarDataCabecalho("18-03"), "18/03");
+  assert.strictEqual(excel.normalizarDataCabecalho("25/03 (2 aulas)"), "25/03");
+  assert.strictEqual(excel.normalizarDataCabecalho("Nome do Aluno"), null);
+
+  // 5.3 Geração e Leitura da Planilha Modelo de Frequência (.xlsx) com Markbox
+  const dadosTurmaFreq = {
+    turma: "Info 2",
+    componente: "Programação Web",
+    alunos: ["ANA BEATRIZ SANTOS", "CARLOS EDUARDO SILVA", "SABRINA DA SILVA OLIVEIRA"],
+    datas: ["04/03", "11/03", "18/03", "25/03"]
+  };
+
+  const modeloFreq = excel.gerarPlanilhaModeloFrequencia(dadosTurmaFreq, { XLSX_LIB: XLSX });
+  assert.ok(modeloFreq.nomeArquivo.includes("Frequencia_Info"), "Nome do arquivo deve conter 'Frequencia_Info'");
+  assert.strictEqual(modeloFreq.totalAlunos, 3, "Total de alunos gerados deve ser 3");
+  assert.deepStrictEqual(modeloFreq.datas, ["04/03", "11/03", "18/03", "25/03"], "Datas devem ser preservadas");
+
+  // Simula marcação de faltas no markbox da planilha:
+  // Sabrina faltou em 04/03 e 18/03; Carlos faltou em 11/03
+  const wsFreq = modeloFreq.workbook.Sheets[modeloFreq.nomeAba];
+  wsFreq["C4"] = { t: "s", v: "F" }; // Linha 4 é Sabrina, Coluna C é 04/03
+  wsFreq["E4"] = { t: "s", v: "X" }; // Coluna E é 18/03
+  wsFreq["D3"] = { t: "s", v: "F" }; // Linha 3 é Carlos, Coluna D é 11/03
+
+  const extracaoFreq = excel.extrairDadosFrequencia(modeloFreq.workbook, modeloFreq.nomeAba, { XLSX_LIB: XLSX });
+  assert.strictEqual(extracaoFreq.sucesso, true, "Extração da planilha de frequência deve ter sucesso");
+  assert.deepStrictEqual(extracaoFreq.datas, ["04/03", "11/03", "18/03", "25/03"], "Todas as 4 datas devem ser extraídas");
+
+  const sabrinaFreq = extracaoFreq.alunos.find(a => a.nome === "SABRINA DA SILVA OLIVEIRA");
+  assert.ok(sabrinaFreq, "Sabrina deve ser encontrada na extração de frequência");
+  assert.strictEqual(sabrinaFreq.frequenciaPorData["04/03"], "F", "Sabrina deve ter falta em 04/03");
+  assert.strictEqual(sabrinaFreq.frequenciaPorData["11/03"], "P", "Sabrina deve ter presença em 11/03");
+  assert.strictEqual(sabrinaFreq.frequenciaPorData["18/03"], "F", "Sabrina deve ter falta em 18/03");
+  assert.strictEqual(sabrinaFreq.totalFaltasCalculadas, 2, "Sabrina deve ter 2 faltas calculadas");
+
+  const carlosFreq = extracaoFreq.alunos.find(a => a.nome === "CARLOS EDUARDO SILVA");
+  assert.strictEqual(carlosFreq.frequenciaPorData["11/03"], "F", "Carlos deve ter falta em 11/03");
+  assert.strictEqual(carlosFreq.totalFaltasCalculadas, 1, "Carlos deve ter 1 falta calculada");
+
+  console.log("  ✓ Geração e extração de planilhas de frequência com markboxes testadas com sucesso!");
+
+  // 5.4 Testes de DOM: Chamada do Dia (#tableAlunos)
+  const envFreq = criarAmbienteDOM();
+  global.window = envFreq.window;
+  global.document = envFreq.document;
+  global.Event = envFreq.Event;
+
+  const alunosFrequenciaTeste = [
+    "ANA BEATRIZ SANTOS",
+    "CARLOS EDUARDO SILVA",
+    "SABRINA DA SILVA OLIVEIRA",
+    "THIAGO FERREIRA (TRANSFERIDO)"
+  ];
+
+  // Monta tabela com Thiago bloqueado (disabled)
+  const tabFrequenciaDOM = montarTabelaFrequencia(envFreq.document, alunosFrequenciaTeste, {
+    qtdPeriodos: 1,
+    alunosDesabilitados: ["THIAGO FERREIRA (TRANSFERIDO)"]
+  });
+
+  // Validação de detecção de tela
+  assert.strictEqual(content.detectarTela(), "frequencia_dia", "Tela com #tableAlunos deve ser detectada como frequencia_dia");
+
+  // A) Teste: 100% Presentes (Desmarca todos os habilitados)
+  // Primeiro, marca alguns como falta (checked = true)
+  const cbs = tabFrequenciaDOM.querySelectorAll('input[type="checkbox"]');
+  cbs[0].checked = true; // Ana falta
+  cbs[1].checked = true; // Carlos falta
+  cbs[2].checked = true; // Sabrina falta
+
+  const res100Presenca = content.marcarPresencaTodos();
+  assert.strictEqual(res100Presenca.sucesso, true, "marcarPresencaTodos deve ter sucesso");
+  assert.strictEqual(cbs[0].checked, false, "Ana deve estar com presença (unchecked)");
+  assert.strictEqual(cbs[1].checked, false, "Carlos deve estar com presença (unchecked)");
+  assert.strictEqual(cbs[2].checked, false, "Sabrina deve estar com presença (unchecked)");
+  assert.strictEqual(cbs[3].checked, false, "Thiago (bloqueado) não deve ser alterado");
+
+  // B) Teste: Chamada Rápida por Lista de Faltosos
+  // Apenas Sabrina faltou hoje
+  const resFaltosos = content.marcarFaltososPorLista(["SABRINA OLIVEIRA"]);
+  assert.strictEqual(resFaltosos.sucesso, true, "marcarFaltososPorLista deve ter sucesso");
+  assert.strictEqual(resFaltosos.faltososCount, 1, "Exatamente 1 aluna deve ser marcada com falta");
+  assert.strictEqual(cbs[0].checked, false, "Ana deve permanecer presente");
+  assert.strictEqual(cbs[1].checked, false, "Carlos deve permanecer presente");
+  assert.strictEqual(cbs[2].checked, true, "Sabrina deve receber falta (checked = true)");
+  assert.strictEqual(cbs[3].checked, false, "Thiago (bloqueado) não deve ser alterado");
+
+  // C) Teste: Frequência via Mapa da Planilha Excel
+  const mapaDataTeste = {
+    "CARLOS EDUARDO SILVA": "F",
+    "ANA BEATRIZ SANTOS": "F",
+    "SABRINA DA SILVA OLIVEIRA": "P"
+  };
+  const resMapa = content.marcarFaltososPorMapaData(mapaDataTeste);
+  assert.strictEqual(resMapa.sucesso, true, "marcarFaltososPorMapaData deve ter sucesso");
+  assert.strictEqual(cbs[0].checked, true, "Ana deve receber falta conforme a planilha");
+  assert.strictEqual(cbs[1].checked, true, "Carlos deve receber falta conforme a planilha");
+  assert.strictEqual(cbs[2].checked, false, "Sabrina deve receber presença conforme a planilha");
+
+  // D) Teste: Aulas Geminadas (2 tempos / 2 checkboxes por estudante)
+  const tabGeminada = montarTabelaFrequencia(envFreq.document, ["SABRINA DA SILVA OLIVEIRA", "CARLOS EDUARDO SILVA"], {
+    qtdPeriodos: 2
+  });
+  content.marcarFaltososPorLista(["SABRINA OLIVEIRA"]);
+  const cbsGeminados = tabGeminada.querySelectorAll('input[type="checkbox"]');
+  // Sabrina tem checkboxes 0 e 1; Carlos tem 2 e 3
+  assert.strictEqual(cbsGeminados[0].checked, true, "Sabrina deve receber falta no 1º tempo");
+  assert.strictEqual(cbsGeminados[1].checked, true, "Sabrina deve receber falta no 2º tempo");
+  assert.strictEqual(cbsGeminados[2].checked, false, "Carlos deve receber presença no 1º tempo");
+  assert.strictEqual(cbsGeminados[3].checked, false, "Carlos deve receber presença no 2º tempo");
+
+  console.log("  ✓ Todas as ações de DOM da Chamada do Dia (100% Presentes, Lista e Geminadas) passaram com sucesso!");
+
+  // 5.5 Testes de Calendário Mensal
+  envFreq.document.body.children = [];
+  const tabCalendario = montarTabelaCalendario(envFreq.document, "Março", [4, 11, 18, 25]);
+  assert.strictEqual(content.eTabelaCalendario(tabCalendario), true, "Tabela deve ser identificada como calendário");
+  assert.strictEqual(content.detectarTela(), "frequencia_calendario", "Tela deve ser detectada como frequencia_calendario");
+
+  let diaClicado = false;
+  const linkDia18 = tabCalendario.querySelector('a[href="#dia_18"]');
+  linkDia18.addEventListener("click", () => {
+    diaClicado = true;
+  });
+
+  const resClique = content.encontrarEClicarDiaNoCalendario(18, 3);
+  assert.strictEqual(resClique, true, "Deve localizar e clicar no dia 18 no mês 3 (Março)");
+  assert.strictEqual(diaClicado, true, "O evento de clique do link do dia 18 deve ser disparado");
+
+  console.log("  ✓ Detecção e navegação no Calendário Mensal testadas com sucesso!");
+
   console.log("\n=======================================================");
   console.log("🎉 TODOS OS TESTES FORAM CONCLUÍDOS COM 100% DE SUCESSO!");
   console.log("   - Normalização e casamento fonético de nomes: OK");
@@ -1121,6 +1279,8 @@ async function executarTodosOsTestes() {
   console.log("   - Recálculo assíncrono dos totais da unidade no RichFaces: OK");
   console.log("   - Resiliência contra campos bloqueados e preservação de índices de coluna: OK");
   console.log("   - Suporte a estudantes com anotações de situação (transferido/cancelado): OK");
+  console.log("   - Módulo de Frequência (100% Presentes, Lista Rápida, Excel com Markbox e Geminadas): OK");
+  console.log("   - Módulo de Calendário (Detecção, navegação e lote): OK");
   console.log("=======================================================\n");
 }
 
