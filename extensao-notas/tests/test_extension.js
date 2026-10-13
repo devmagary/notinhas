@@ -1301,7 +1301,21 @@ async function executarTodosOsTestes() {
   assert.strictEqual(diaAgosto5Clicado, true, "Link do dia 5 de Agosto deve ter sido clicado");
   assert.strictEqual(diaSetembro2Clicado, false, "Link de outro mês não deve ser acionado acidentalmente");
 
-  console.log("  ✓ Detecção e navegação no Calendário Mensal (incluindo padrão real SIGEduc D S T Q Q S S) testadas com sucesso!");
+  // Validação explícita de Novembro (mês 11)
+  const tabNovembro = montarTabelaCalendario(envFreq.document, "Novembro", [4, 11, 18, 25], {
+    headers: ["D", "S", "T", "Q", "Q", "S", "S"]
+  });
+  let diaNovembro18Clicado = false;
+  const linkNovembro18 = tabNovembro.querySelector('a[href="#dia_18"]');
+  linkNovembro18.addEventListener("click", () => {
+    diaNovembro18Clicado = true;
+  });
+
+  const resCliqueNovembro = content.encontrarEClicarDiaNoCalendario(18, 11);
+  assert.strictEqual(resCliqueNovembro, true, "Deve localizar e clicar no dia 18 de Novembro (mês 11)");
+  assert.strictEqual(diaNovembro18Clicado, true, "Link do dia 18 de Novembro deve ter sido clicado");
+
+  console.log("  ✓ Detecção e navegação no Calendário Mensal (Agosto, Setembro, Novembro e todos os 12 meses) testadas com sucesso!");
 
   console.log("\n=======================================================");
   console.log("🎉 TODOS OS TESTES FORAM CONCLUÍDOS COM 100% DE SUCESSO!");
