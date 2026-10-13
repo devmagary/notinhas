@@ -1746,10 +1746,11 @@
 
         if (alunosInfo.total === 0 || (dataNaTela && dataNaTela !== dataAtualNorm)) {
           exibirToast("Abrindo Data...", `Clicando no dia ${dataAtual} no calendário...`, "info", 2000);
-          let clicou = encontrarEClicarDiaNoCalendario(dia, mes);
-          if (!clicou) {
-            await new Promise(r => setTimeout(r, 800));
+          let clicou = false;
+          for (let tentativa = 0; tentativa < 4; tentativa++) {
             clicou = encontrarEClicarDiaNoCalendario(dia, mes);
+            if (clicou) break;
+            await new Promise(r => setTimeout(r, 600));
           }
 
           if (!clicou) {
@@ -1779,21 +1780,27 @@
         exibirToast("Frequência Marcada!", `Dia ${dataAtual}: ${resMarcacao.mensagem || "presenças e faltas aplicadas."}`, "sucesso", 3000);
         await new Promise(r => setTimeout(r, 600));
 
-        // PASSO 3: Gravar com senha se solicitado
+        // PASSO 3: Avança o índice na sessionStorage ANTES de submeter a gravação.
+        // Se a gravação disparar recarregamento completo da página (POST do SIGEduc),
+        // o navegador continuará automaticamente no próximo dia via autoInit!
+        config.indiceAtual = indiceAtual + 1;
+        sessionStorage.setItem("sgn_lote_frequencia", JSON.stringify(config));
+
+        // PASSO 4: Gravar com senha se solicitado
         if (config.autoGravar && config.senha) {
           exibirToast("Gravando Chamada...", `Confirmando presença do dia ${dataAtual} com senha...`, "info", 3000);
           const resGravar = await submeterComSenha(config.senha);
           if (!resGravar.sucesso) {
+            config.indiceAtual = indiceAtual; // Restaura índice em caso de erro antes do envio
+            sessionStorage.setItem("sgn_lote_frequencia", JSON.stringify(config));
             exibirToast("Atenção na Gravação", resGravar.erro || "Verifique a senha no site.", "aviso", 6000);
             break;
           }
-          await new Promise(r => setTimeout(r, 1500));
+          // Aguarda o site processar (se a página recarregar pelo POST, o autoInit assume)
+          await new Promise(r => setTimeout(r, 2000));
         }
 
-        // PASSO 4: Avançar para a próxima data na fila
-        config.indiceAtual = indiceAtual + 1;
-        sessionStorage.setItem("sgn_lote_frequencia", JSON.stringify(config));
-
+        // PASSO 5: Se a página não recarregou (caso de submissão via AJAX puro), avança para a próxima data no loop:
         if (config.indiceAtual < total) {
           const proxData = config.filaDatas[config.indiceAtual];
           const pedacosProx = proxData.split(/[\/\-\.]/);
@@ -2222,9 +2229,9 @@
     };
 
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", autoInit);
+      document.addEventListener("DOMContentLoaded", () => setTimeout(autoInit, 400));
     } else {
-      setTimeout(autoInit, 300);
+      setTimeout(autoInit, 400);
     }
   }
 
