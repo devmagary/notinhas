@@ -1326,7 +1326,15 @@ async function executarTodosOsTestes() {
   assert.strictEqual(resCliqueNovembro, true, "Deve localizar e clicar no dia 18 de Novembro (mês 11)");
   assert.strictEqual(diaNovembro18Clicado, true, "Link do dia 18 de Novembro deve ter sido clicado");
 
+  // 5.7 Teste de Sanitização e Interceptação de Diálogos (window.confirm)
+  const btnComConfirm = envFreq.document.createElement("button");
+  btnComConfirm.setAttribute("onclick", "if (!confirm('Deseja realmente gravar as frequências para o dia selecionado?')) return false; alert('Gravado');");
+  content.sanitizarElementoConfirm(btnComConfirm);
+  assert.ok(!btnComConfirm.getAttribute("onclick").includes("confirm"), "confirm() deve ser removido do onclick");
+  assert.ok(btnComConfirm.getAttribute("onclick").includes("if (!true) return false;"), "confirm deve ser substituído por true");
+
   console.log("  ✓ Detecção e navegação no Calendário Mensal (Agosto, Setembro, Novembro e todos os 12 meses) testadas com sucesso!");
+  console.log("  ✓ Sanitização e auto-aceite de diálogos de confirmação (confirm) testados com sucesso!");
 
   console.log("\n=======================================================");
   console.log("🎉 TODOS OS TESTES FORAM CONCLUÍDOS COM 100% DE SUCESSO!");

@@ -24,6 +24,18 @@
         "*://*.educacao.ba.gov.br/*"
       ],
       "js": [
+        "content/page-bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "*://sigeduc.educacao.ba.gov.br/*",
+        "*://*.educacao.ba.gov.br/*"
+      ],
+      "js": [
         "lib/nomes.js",
         "content/content.js"
       ],
@@ -32,6 +44,12 @@
       ],
       "run_at": "document_idle",
       "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/page-bridge.js"],
+      "matches": ["*://sigeduc.educacao.ba.gov.br/*", "*://*.educacao.ba.gov.br/*"]
     }
   ],
   "permissions": [

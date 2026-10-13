@@ -1140,8 +1140,49 @@
   // =========================================================================
   // 7. Submissão e Gravação com Senha (Opcional)
   // =========================================================================
+  function injetarAutoConfirmNoMundoPrincipal() {
+    if (typeof document === "undefined") return;
+    try {
+      const script = document.createElement("script");
+      script.textContent = `
+        (function() {
+          if (!window.__sgn_confirm_overridden) {
+            window.__sgn_confirm_overridden = true;
+            const _origConfirm = window.confirm;
+            window.confirm = function(msg) {
+              console.log("[SIGEduc Auto] confirm() auto-aceito:", msg);
+              return true;
+            };
+            const _origAlert = window.alert;
+            window.alert = function(msg) {
+              console.log("[SIGEduc Auto] alert() interceptado:", msg);
+              return true;
+            };
+          }
+        })();
+      `;
+      (document.head || document.documentElement).appendChild(script);
+      script.remove();
+    } catch (e) {
+      console.warn("Falha ao injetar script no mundo principal:", e);
+    }
+  }
+
+  function sanitizarElementoConfirm(el) {
+    if (!el) return;
+    try {
+      const onclickAttr = el.getAttribute("onclick");
+      if (onclickAttr && /confirm/i.test(onclickAttr)) {
+        const novo = onclickAttr.replace(/confirm\s*\((?:[^)(]+|\([^)(]*\))*\)/gi, "true");
+        el.setAttribute("onclick", novo);
+      }
+    } catch (e) {}
+  }
+
   async function submeterComSenha(senha) {
     if (!senha) return { sucesso: false, erro: "Senha não fornecida." };
+
+    injetarAutoConfirmNoMundoPrincipal();
 
     // 1. Procura campo de senha já presente na tela principal
     let campoSenha = document.querySelector("input[type='password']");
@@ -1153,6 +1194,8 @@
         .find(el => elementoVisivel(el) && !el.disabled && /gravar|salvar|cadastrar/i.test(el.value || el.innerText || ""));
 
       if (btnGravar) {
+        sanitizarElementoConfirm(btnGravar);
+        injetarAutoConfirmNoMundoPrincipal();
         btnGravar.click();
         return { sucesso: true, mensagem: "Gravação enviada com sucesso!" };
       }
@@ -1166,6 +1209,8 @@
       return { sucesso: false, erro: "Botão 'Gravar' não encontrado na tela." };
     }
 
+    sanitizarElementoConfirm(btnGravar);
+    injetarAutoConfirmNoMundoPrincipal();
     btnGravar.click();
 
     // Aguarda modal abrir por até 6 segundos
@@ -1187,6 +1232,8 @@
         .find(el => elementoVisivel(el) && !el.disabled && /confirmar|ok/i.test(el.value || el.innerText || ""));
 
       if (btnConfirmar) {
+        sanitizarElementoConfirm(btnConfirmar);
+        injetarAutoConfirmNoMundoPrincipal();
         btnConfirmar.click();
         return { sucesso: true, mensagem: "Senha confirmada no modal com sucesso!" };
       } else {
@@ -2163,7 +2210,10 @@
 
   // Inicialização automática de recursos na página do SIGEduc
   if (typeof document !== "undefined" && typeof window !== "undefined") {
+    injetarAutoConfirmNoMundoPrincipal();
+
     const autoInit = () => {
+      injetarAutoConfirmNoMundoPrincipal();
       const tela = detectarTela();
       if (tela === "frequencia_dia") {
         injetarBarraFrequenciaNaTela();
@@ -2197,6 +2247,8 @@
     preencherNotasNaTela,
     preencherFVNaTela,
     submeterComSenha,
+    injetarAutoConfirmNoMundoPrincipal,
+    sanitizarElementoConfirm,
     obterTabelaFrequenciaAtiva,
     extrairDataDaTabelaFrequencia,
     extrairAlunosFrequenciaDaTela,
