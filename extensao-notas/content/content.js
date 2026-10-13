@@ -1562,14 +1562,34 @@
     const mesNum = mes ? parseInt(mes, 10) : null;
     const dataFormatada = mesNum ? `${diaZero}/${String(mesNum).padStart(2, "0")}` : diaStr;
 
+    // 0. Prioridade máxima: Elemento cujo title, onclick, href ou aria-label contenha a data completa (ex: "12/08")
+    if (mesNum) {
+      const todosElementos = Array.from(document.querySelectorAll("a, button, td, span, [onclick]"));
+      for (const el of todosElementos) {
+        const title = (el.getAttribute("title") || "").trim();
+        const onclick = (el.getAttribute("onclick") || "").trim();
+        const href = (el.getAttribute("href") || "").trim();
+        const aria = (el.getAttribute("aria-label") || "").trim();
+
+        if (
+          (title && (title.includes(dataFormatada) || title.includes(`${diaNum}/${mesNum}`))) ||
+          (onclick && (onclick.includes(dataFormatada) || onclick.includes(`${diaNum}/${mesNum}`))) ||
+          (href && (href.includes(dataFormatada) || href.includes(`${diaNum}/${mesNum}`))) ||
+          (aria && (aria.includes(dataFormatada) || aria.includes(`${diaNum}/${mesNum}`)))
+        ) {
+          return acionarCliqueElemento(el);
+        }
+      }
+    }
+
+    // 1. Localiza a raiz específica do mês (o quadrado do mês no calendário anual)
     const raizBusca = mesNum ? (encontrarTabelaDoMes(mesNum) || document.body) : document.body;
 
-    // 1. Procura em links <a>
+    // 2. Procura em links <a> dentro do quadrado do mês
     const links = Array.from(raizBusca.querySelectorAll("a"));
     for (const link of links) {
       const txt = (link.innerText || link.textContent || "").replace(/\s+/g, "").trim();
       const title = (link.getAttribute("title") || "").trim();
-      const href = (link.getAttribute("href") || "").trim();
       const onclick = (link.getAttribute("onclick") || "").trim();
 
       if (
@@ -1582,7 +1602,7 @@
       }
     }
 
-    // 2. Procura em elementos clicáveis ([onclick], buttons)
+    // 3. Procura em elementos clicáveis ([onclick], buttons) dentro do quadrado do mês
     const clicaveis = Array.from(raizBusca.querySelectorAll("button, td[onclick], span[onclick], div[onclick], [onclick]"));
     for (const el of clicaveis) {
       const txt = (el.innerText || el.textContent || "").replace(/\s+/g, "").trim();
@@ -1591,7 +1611,7 @@
       }
     }
 
-    // 3. Procura em células <td>
+    // 4. Procura em células <td> dentro do quadrado do mês
     const tds = Array.from(raizBusca.querySelectorAll("td"));
     for (const td of tds) {
       const txt = (td.innerText || td.textContent || "").replace(/\s+/g, "").trim();
@@ -1599,23 +1619,6 @@
         const filho = td.querySelector("a, button, [onclick]");
         if (filho) return acionarCliqueElemento(filho);
         return acionarCliqueElemento(td);
-      }
-    }
-
-    // 4. Fallback: Se não achou na raiz específica do mês e mesNum foi fornecido, tenta na página inteira
-    if (raizBusca !== document.body) {
-      const todosLinks = Array.from(document.querySelectorAll("a"));
-      for (const link of todosLinks) {
-        const title = (link.getAttribute("title") || "").trim();
-        const onclick = (link.getAttribute("onclick") || "").trim();
-        const href = (link.getAttribute("href") || "").trim();
-        if (
-          (title && title.includes(dataFormatada)) ||
-          (onclick && onclick.includes(dataFormatada)) ||
-          (href && href.includes(dataFormatada))
-        ) {
-          return acionarCliqueElemento(link);
-        }
       }
     }
 
