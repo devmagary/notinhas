@@ -87,27 +87,49 @@
   // =========================================================================
   // 3. Detecção de Tela e Elementos no SIGEduc
   // =========================================================================
+  function normalizarTextoSimples(str) {
+    if (!str) return "";
+    return String(str)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[\u00A0\s]+/g, " ")
+      .trim();
+  }
+
   function eTabelaCalendario(tabela) {
     if (!tabela) return false;
     try {
-      const texto = (tabela.innerText || "").toUpperCase();
-      const diasSemana = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
-      const contador = diasSemana.filter(d => texto.includes(d)).length;
-      if (contador >= 4) {
-        const links = tabela.querySelectorAll("a");
-        if (links.length >= 1) return true;
+      const texto = normalizarTextoSimples(tabela.innerText || "");
+      const meses = ["JANEIRO", "FEVEREIRO", "MARCO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
+      const temMes = meses.some(m => texto.includes(m));
+
+      // Verifica cabeçalhos de dias da semana (tanto DOM/SEG quanto D/S/T/Q)
+      const temDiasSemanaAbrev = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"].filter(d => texto.includes(d)).length >= 3;
+      
+      const celulasCabecalho = Array.from(tabela.querySelectorAll("th, tr:first-child td, tr:nth-child(2) td")).map(el => (el.innerText || "").trim().toUpperCase());
+      const temDiasSemanaLetra = ["D", "S", "T", "Q"].filter(letra => celulasCabecalho.includes(letra)).length >= 3;
+
+      const links = tabela.querySelectorAll("a");
+      const numeros = Array.from(tabela.querySelectorAll("a, td, span")).filter(el => {
+        const n = parseInt((el.innerText || "").trim(), 10);
+        return !isNaN(n) && n >= 1 && n <= 31;
+      });
+
+      if ((temMes || temDiasSemanaAbrev || temDiasSemanaLetra) && (links.length >= 1 || numeros.length >= 4)) {
+        return true;
       }
     } catch (e) {}
     return false;
   }
 
   function detectarTela() {
-    const textoDoc = (document.body ? document.body.innerText : "").toUpperCase();
+    const textoDoc = normalizarTextoSimples(document.body ? document.body.innerText : "");
     const url = (typeof window !== "undefined" && window.location ? window.location.href : "").toLowerCase();
 
     // 1. Tela de Falta Vinculada
     if (
-      textoDoc.includes("VERIFICAR AVALIAÇÕES NÃO REALIZADAS") ||
+      textoDoc.includes("VERIFICAR AVALIACOES NAO REALIZADAS") ||
       textoDoc.includes("VERIFICAR AVALIACOES") ||
       textoDoc.includes("FALTA VINCULADA")
     ) {
@@ -116,9 +138,8 @@
 
     // 2. Tela de Lançamento de Notas
     if (
-      textoDoc.includes("LANÇAR NOTAS PARA AVALIAÇÕES") ||
+      textoDoc.includes("LANCAR NOTAS PARA AVALIACOES") ||
       textoDoc.includes("LANCAR NOTAS") ||
-      textoDoc.includes("LANÇAR NOTAS") ||
       document.querySelector("input.avaliacao, input[id*=':av__'], input[id*=':av'], table[id*='formulario:result'], #formulario\\:result")
     ) {
       return "notas";
@@ -127,15 +148,20 @@
     // 3. Tela de Frequência do Dia (Chamada / Tabela de Alunos)
     if (
       document.querySelector("#tableAlunos") ||
-      (document.querySelector("table") && (textoDoc.includes("REGISTRO DE FREQUÊNCIA") || textoDoc.includes("REGISTRO DE FREQUENCIA") || textoDoc.includes("LANÇAR FREQUÊNCIA") || textoDoc.includes("LANCAR FREQUENCIA") || textoDoc.includes("FREQUÊNCIA DO DIA")) && document.querySelector("input[type='checkbox']"))
+      (document.querySelector("table") && (textoDoc.includes("REGISTRO DE FREQUENCIA") || textoDoc.includes("LANCAR FREQUENCIA") || textoDoc.includes("FREQUENCIA DO DIA")) && document.querySelector("input[type='checkbox']"))
     ) {
       return "frequencia_dia";
     }
 
     // 4. Calendário Mensal de Frequência
     if (
-      document.querySelectorAll("table").length > 0 &&
-      Array.from(document.querySelectorAll("table")).some(t => eTabelaCalendario(t))
+      textoDoc.includes("CALENDARIO") ||
+      textoDoc.includes("PRESENCAS LANCADAS") ||
+      textoDoc.includes("AULAS DE REPOSICAO") ||
+      textoDoc.includes("INTERRUPCAO ESCOLAR") ||
+      textoDoc.includes("AULA CANCELADA") ||
+      textoDoc.includes("FALTA PROFESSOR") ||
+      (document.querySelectorAll("table").length > 0 && Array.from(document.querySelectorAll("table")).some(t => eTabelaCalendario(t)))
     ) {
       return "frequencia_calendario";
     }
@@ -1338,44 +1364,167 @@
     };
   }
 
-  function encontrarEClicarDiaNoCalendario(dia, mes) {
-    const tabelas = Array.from(document.querySelectorAll("table")).filter(t => eTabelaCalendario(t));
-    if (!tabelas.length) return false;
+  function encontrarTabelaDoMes(mes) {
+    if (!mes || mes < 1 || mes > 12) return null;
+    const nomeMesNorm = normalizarTextoSimples(MESES[mes - 1]);
+    const outrosMeses = MESES.filter((_, idx) => idx !== (mes - 1)).map(m => normalizarTextoSimples(m));
 
-    const diaStr = String(parseInt(dia, 10));
-    const diaZero = diaStr.padStart(2, "0");
-    const nomeMes = (mes && MESES[mes - 1]) ? MESES[mes - 1].toUpperCase() : null;
+    const todasTabelas = Array.from(document.querySelectorAll("table"));
+    const tabelasFolha = todasTabelas.filter(t => t.querySelectorAll("table").length === 0);
 
-    for (const tabela of tabelas) {
-      const txtTab = (tabela.innerText || "").toUpperCase();
-      if (nomeMes && !txtTab.includes(nomeMes)) {
-        continue;
+    // 1. Tabela folha cujo texto contém o mês desejado e nenhum outro mês
+    for (const tab of tabelasFolha) {
+      const txt = normalizarTextoSimples(tab.innerText || "");
+      if (txt.includes(nomeMesNorm) && !outrosMeses.some(om => txt.includes(om))) {
+        return tab;
       }
+    }
 
-      const links = Array.from(tabela.querySelectorAll("a"));
-      for (const link of links) {
-        const txtLink = (link.innerText || "").trim();
-        if (txtLink === diaStr || txtLink === diaZero) {
-          try {
-            link.click();
-            return true;
-          } catch (e) {
-            console.error("Erro ao clicar no dia do calendário:", e);
-          }
+    // 2. Tabela folha cujo container pai contém o mês desejado e nenhum outro
+    for (const tab of tabelasFolha) {
+      const pai = tab.closest("div, td, section, fieldset, form, .calendario, .month") || tab.parentElement;
+      if (pai) {
+        const txtPai = normalizarTextoSimples(pai.innerText || "");
+        if (txtPai.includes(nomeMesNorm) && !outrosMeses.some(om => txtPai.includes(om))) {
+          return tab;
         }
       }
     }
+
+    // 3. Qualquer tabela cujo texto contenha o mês
+    for (const tab of todasTabelas) {
+      const txt = normalizarTextoSimples(tab.innerText || "");
+      if (txt.includes(nomeMesNorm)) {
+        return tab;
+      }
+    }
+
+    // 4. Elementos de cabeçalho ou título com o nome do mês
+    const cabecalhos = Array.from(document.querySelectorAll("caption, th, h1, h2, h3, h4, h5, div, span, b, strong")).filter(el => {
+      const txt = normalizarTextoSimples(el.innerText || "");
+      return txt === nomeMesNorm || txt.startsWith(nomeMesNorm);
+    });
+    for (const el of cabecalhos) {
+      const container = el.closest("div, table, section, fieldset, td") || el.parentElement;
+      if (container) {
+        const tab = container.querySelector("table");
+        if (tab) return tab;
+        return container;
+      }
+    }
+
+    return null;
+  }
+
+  function acionarCliqueElemento(el) {
+    if (!el) return false;
+    try {
+      if (typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
+      el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+      el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      if (typeof el.click === "function") {
+        el.click();
+      }
+      return true;
+    } catch (e) {
+      try {
+        if (typeof el.click === "function") {
+          el.click();
+          return true;
+        }
+      } catch (err) {
+        console.error("Erro ao clicar no elemento do calendário:", err);
+      }
+    }
+    return false;
+  }
+
+  function encontrarEClicarDiaNoCalendario(dia, mes) {
+    const diaNum = parseInt(dia, 10);
+    if (isNaN(diaNum)) return false;
+
+    const diaStr = String(diaNum);
+    const diaZero = diaStr.padStart(2, "0");
+    const mesNum = mes ? parseInt(mes, 10) : null;
+    const dataFormatada = mesNum ? `${diaZero}/${String(mesNum).padStart(2, "0")}` : diaStr;
+
+    const raizBusca = mesNum ? (encontrarTabelaDoMes(mesNum) || document.body) : document.body;
+
+    // 1. Procura em links <a>
+    const links = Array.from(raizBusca.querySelectorAll("a"));
+    for (const link of links) {
+      const txt = (link.innerText || link.textContent || "").replace(/\s+/g, "").trim();
+      const title = (link.getAttribute("title") || "").trim();
+      const href = (link.getAttribute("href") || "").trim();
+      const onclick = (link.getAttribute("onclick") || "").trim();
+
+      if (
+        txt === diaStr ||
+        txt === diaZero ||
+        (title && (title.includes(dataFormatada) || title.includes(` ${diaNum} `))) ||
+        (onclick && (onclick.includes(`'${diaNum}'`) || onclick.includes(`"${diaNum}"`)))
+      ) {
+        return acionarCliqueElemento(link);
+      }
+    }
+
+    // 2. Procura em elementos clicáveis ([onclick], buttons)
+    const clicaveis = Array.from(raizBusca.querySelectorAll("button, td[onclick], span[onclick], div[onclick], [onclick]"));
+    for (const el of clicaveis) {
+      const txt = (el.innerText || el.textContent || "").replace(/\s+/g, "").trim();
+      if (txt === diaStr || txt === diaZero) {
+        return acionarCliqueElemento(el);
+      }
+    }
+
+    // 3. Procura em células <td>
+    const tds = Array.from(raizBusca.querySelectorAll("td"));
+    for (const td of tds) {
+      const txt = (td.innerText || td.textContent || "").replace(/\s+/g, "").trim();
+      if (txt === diaStr || txt === diaZero) {
+        const filho = td.querySelector("a, button, [onclick]");
+        if (filho) return acionarCliqueElemento(filho);
+        return acionarCliqueElemento(td);
+      }
+    }
+
+    // 4. Fallback: Se não achou na raiz específica do mês e mesNum foi fornecido, tenta na página inteira
+    if (raizBusca !== document.body) {
+      const todosLinks = Array.from(document.querySelectorAll("a"));
+      for (const link of todosLinks) {
+        const title = (link.getAttribute("title") || "").trim();
+        const onclick = (link.getAttribute("onclick") || "").trim();
+        const href = (link.getAttribute("href") || "").trim();
+        if (
+          (title && title.includes(dataFormatada)) ||
+          (onclick && onclick.includes(dataFormatada)) ||
+          (href && href.includes(dataFormatada))
+        ) {
+          return acionarCliqueElemento(link);
+        }
+      }
+    }
+
     return false;
   }
 
   function voltarParaCalendario() {
     const botoes = Array.from(document.querySelectorAll("input[type='button'], input[type='submit'], button, a"));
     const btnVoltar = botoes.find(el => {
-      const val = ((el.value || el.innerText || "")).toUpperCase();
-      return val.includes("VOLTAR") || val.includes("RETORNAR") || val.includes("CALENDÁRIO") || val.includes("CALENDARIO");
+      const val = normalizarTextoSimples(el.value || el.innerText || "");
+      return (
+        val.includes("VOLTAR") ||
+        val.includes("RETORNAR") ||
+        val.includes("CALENDARIO") ||
+        val.includes("DIARIO DE CLASSE")
+      );
     });
     if (btnVoltar) {
-      btnVoltar.click();
+      acionarCliqueElemento(btnVoltar);
       return true;
     }
     if (typeof window !== "undefined" && window.history && window.history.back) {
@@ -1434,7 +1583,7 @@
       return;
     }
 
-    const tela = detectarTela();
+    let tela = detectarTela();
     const indiceAtual = config.indiceAtual || 0;
     const total = config.filaDatas.length;
 
@@ -1450,6 +1599,7 @@
     exibirBarraProgressoLote(indiceAtual + 1, total, dataAtual);
 
     if (tela === "frequencia_dia") {
+      // 1. Estamos na tela de frequência do dia
       const mapaData = (config.dadosFrequenciaPorData && config.dadosFrequenciaPorData[dataAtual]) || null;
       if (mapaData) {
         marcarFaltososPorMapaData(mapaData);
@@ -1474,15 +1624,26 @@
       await new Promise(r => setTimeout(r, 600));
       voltarParaCalendario();
 
-    } else if (tela === "frequencia_calendario") {
-      const pedacos = dataAtual.split(/[\/\-]/);
+    } else {
+      // 2. Estamos no Calendário Mensal (ou transição de página)
+      const pedacos = dataAtual.split(/[\/\-\.]/);
       const dia = parseInt(pedacos[0], 10);
       const mes = pedacos.length > 1 ? parseInt(pedacos[1], 10) : null;
 
+      // Aguarda 600ms para estabilização do DOM
       await new Promise(r => setTimeout(r, 600));
-      const clicou = encontrarEClicarDiaNoCalendario(dia, mes);
+
+      let clicou = encontrarEClicarDiaNoCalendario(dia, mes);
       if (!clicou) {
-        exibirToast("Data Não Encontrada", `Não foi possível localizar o dia ${dataAtual} no calendário ativo. Ajuste o mês se necessário.`, "aviso", 8000);
+        // Tenta mais uma vez após 800ms (para requisições AJAX do RichFaces)
+        await new Promise(r => setTimeout(r, 800));
+        clicou = encontrarEClicarDiaNoCalendario(dia, mes);
+      }
+
+      if (clicou) {
+        exibirToast("Data Selecionada!", `Abrindo chamada do dia ${dataAtual}...`, "info", 3000);
+      } else {
+        exibirToast("Data Não Encontrada", `Não foi possível localizar o dia ${dataAtual} no calendário ativo. Clique na data manualmente no site para continuar o lote.`, "aviso", 9000);
       }
     }
   }
@@ -1924,6 +2085,8 @@
     marcarFaltososPorLista,
     marcarFaltososPorMapaData,
     encontrarEClicarDiaNoCalendario,
+    encontrarTabelaDoMes,
+    normalizarTextoSimples,
     voltarParaCalendario,
     verificarEExecutarFilaLote,
     injetarBarraFrequenciaNaTela

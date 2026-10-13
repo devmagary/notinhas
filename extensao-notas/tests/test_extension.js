@@ -1267,7 +1267,41 @@ async function executarTodosOsTestes() {
   assert.strictEqual(resClique, true, "Deve localizar e clicar no dia 18 no mês 3 (Março)");
   assert.strictEqual(diaClicado, true, "O evento de clique do link do dia 18 deve ser disparado");
 
-  console.log("  ✓ Detecção e navegação no Calendário Mensal testadas com sucesso!");
+  // 5.6 Teste Real SIGEduc: Calendário com cabeçalhos de letra única (D S T Q Q S S) e múltiplos meses (Agosto e Setembro)
+  envFreq.document.body.children = [];
+  const divTitulo = envFreq.document.createElement("div");
+  divTitulo.innerText = "Calendário 2026\nLegenda:\n1 : Presenças lançadas\n1 : Falta Professor";
+  envFreq.document.body.appendChild(divTitulo);
+
+  const tabAgosto = montarTabelaCalendario(envFreq.document, "Agosto", [5, 12, 19, 26], {
+    headers: ["D", "S", "T", "Q", "Q", "S", "S"]
+  });
+  const tabSetembro = montarTabelaCalendario(envFreq.document, "Setembro", [2, 9, 16, 23, 30], {
+    headers: ["D", "S", "T", "Q", "Q", "S", "S"]
+  });
+
+  assert.strictEqual(content.detectarTela(), "frequencia_calendario", "Tela com Calendário 2026 e Legenda deve ser detectada como frequencia_calendario");
+  assert.strictEqual(content.eTabelaCalendario(tabAgosto), true, "Tabela de Agosto com cabeçalhos D S T Q deve ser identificada como calendário");
+
+  let diaAgosto5Clicado = false;
+  const linkAgosto5 = tabAgosto.querySelector('a[href="#dia_5"]');
+  linkAgosto5.addEventListener("click", () => {
+    diaAgosto5Clicado = true;
+  });
+
+  let diaSetembro2Clicado = false;
+  const linkSetembro2 = tabSetembro.querySelector('a[href="#dia_2"]');
+  linkSetembro2.addEventListener("click", () => {
+    diaSetembro2Clicado = true;
+  });
+
+  // Dispara clique no dia 5 de Agosto (mês 8)
+  const resCliqueAgosto = content.encontrarEClicarDiaNoCalendario(5, 8);
+  assert.strictEqual(resCliqueAgosto, true, "Deve localizar e clicar no dia 5 de Agosto (mês 8)");
+  assert.strictEqual(diaAgosto5Clicado, true, "Link do dia 5 de Agosto deve ter sido clicado");
+  assert.strictEqual(diaSetembro2Clicado, false, "Link de outro mês não deve ser acionado acidentalmente");
+
+  console.log("  ✓ Detecção e navegação no Calendário Mensal (incluindo padrão real SIGEduc D S T Q Q S S) testadas com sucesso!");
 
   console.log("\n=======================================================");
   console.log("🎉 TODOS OS TESTES FORAM CONCLUÍDOS COM 100% DE SUCESSO!");

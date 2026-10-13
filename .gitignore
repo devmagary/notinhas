@@ -23,6 +23,8 @@ package*.json
 build/
 dist/
 *.spec
+*.crx
+*.pem
 
 # IDE e editores
 .vscode/

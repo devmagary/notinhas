@@ -456,9 +456,9 @@ function montarTabelaFrequencia(doc, nomesAlunos, opcoes = {}) {
 /**
  * Cria a tabela do calendário mensal no DOM simulado.
  */
-function montarTabelaCalendario(doc, nomeMes = "Março", diasComAula = [4, 11, 18, 25]) {
+function montarTabelaCalendario(doc, nomeMes = "Março", diasComAula = [4, 11, 18, 25], opcoes = {}) {
   const tabela = doc.createElement("table");
-  tabela.id = "calendarioFrequencia";
+  tabela.id = opcoes.id || `calendario_${nomeMes.toLowerCase()}`;
 
   const thead = doc.createElement("thead");
   const trMes = doc.createElement("tr");
@@ -468,7 +468,8 @@ function montarTabelaCalendario(doc, nomeMes = "Março", diasComAula = [4, 11, 1
   thead.appendChild(trMes);
 
   const trDias = doc.createElement("tr");
-  ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"].forEach(d => {
+  const headers = opcoes.headers || ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+  headers.forEach(d => {
     const th = doc.createElement("th");
     th.innerText = d;
     trDias.appendChild(th);
