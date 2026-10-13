@@ -478,11 +478,12 @@
    */
   function ehFalta(val) {
     if (val === null || val === undefined) return false;
+    if (val === true) return true;
     const txt = String(val).replace(/\u00A0/g, " ").trim().toLowerCase();
-    if (txt === "" || txt === "p" || txt === "pres" || txt === "presente" || txt === "." || txt === "0" || txt === "sim" || txt === "s") {
+    if (txt === "" || txt === "p" || txt === "pres" || txt === "presente" || txt === "." || txt === "0" || txt === "false" || txt === "falso") {
       return false;
     }
-    if (txt === "f" || txt === "x" || txt === "1" || txt === "falta" || txt === "faltou" || txt === "ausente" || txt === "não" || txt === "nao" || txt === "n") {
+    if (txt === "f" || txt === "x" || txt === "1" || txt === "falta" || txt === "faltou" || txt === "ausente" || txt === "não" || txt === "nao" || txt === "n" || txt === "true" || txt === "verdadeiro" || txt === "v" || txt === "marcado" || txt === "check" || txt === "checked") {
       return true;
     }
     return false;

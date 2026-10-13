@@ -148,7 +148,14 @@
     // 3. Tela de Frequência do Dia (Chamada / Tabela de Alunos)
     if (
       document.querySelector("#tableAlunos") ||
-      (document.querySelector("table") && (textoDoc.includes("REGISTRO DE FREQUENCIA") || textoDoc.includes("LANCAR FREQUENCIA") || textoDoc.includes("FREQUENCIA DO DIA")) && document.querySelector("input[type='checkbox']"))
+      (document.querySelector("table") && (
+        textoDoc.includes("LISTA DE FREQUENCIA") ||
+        textoDoc.includes("INFORMAR FREQUENCIA") ||
+        textoDoc.includes("REGISTRO DE FREQUENCIA") ||
+        textoDoc.includes("LANCAR FREQUENCIA") ||
+        textoDoc.includes("FREQUENCIA DO DIA")
+      ) && document.querySelector("input[type='checkbox']")) ||
+      (obterTabelaFrequenciaAtiva() !== null)
     ) {
       return "frequencia_dia";
     }
@@ -1219,26 +1226,82 @@
     return true;
   }
 
-  function extrairAlunosFrequenciaDaTela() {
-    let tabela = document.querySelector("#tableAlunos");
-    if (!tabela) {
-      const tabelas = Array.from(document.querySelectorAll("table"));
-      tabela = tabelas.find(t => t.querySelector("tbody tr") && t.querySelector("input[type='checkbox']"));
+  function obterTabelaFrequenciaAtiva() {
+    const tabDireta = document.querySelector("#tableAlunos");
+    if (tabDireta && elementoVisivel(tabDireta)) return tabDireta;
+
+    const tabelas = Array.from(document.querySelectorAll("table"));
+    return tabelas.find(t => {
+      if (!elementoVisivel(t)) return false;
+      const cbs = t.querySelectorAll("input[type='checkbox']");
+      if (cbs.length === 0) return false;
+      const txt = normalizarTextoSimples(t.innerText || "");
+      return txt.includes("MATRICULA") || txt.includes("NOME") || txt.includes("HORARIO") || txt.includes("LISTA DE FREQUENCIA") || cbs.length >= 3;
+    }) || null;
+  }
+
+  function extrairDataDaTabelaFrequencia() {
+    const tabela = obterTabelaFrequenciaAtiva();
+    const textos = [];
+
+    if (tabela) {
+      const cabecalhos = Array.from(tabela.querySelectorAll("caption, thead, th, tr:nth-child(-n+3)"));
+      cabecalhos.forEach(c => textos.push(c.innerText || c.textContent || ""));
+
+      let el = tabela.parentElement;
+      for (let i = 0; i < 4 && el; i++) {
+        textos.push(el.innerText || el.textContent || "");
+        el = el.parentElement;
+      }
     }
+
+    const elsTit = Array.from(document.querySelectorAll("h1, h2, h3, h4, .rich-panel-header, .titulo, td, th, caption, div"));
+    for (const el of elsTit) {
+      if (el.children.length > 3) continue;
+      const txt = (el.innerText || el.textContent || "").trim();
+      if (/LISTA DE FREQU[EÊ]NCIA/i.test(txt)) {
+        textos.push(txt);
+      }
+    }
+
+    for (const txt of textos) {
+      if (!txt) continue;
+      const match = txt.match(/LISTA DE FREQU[EÊ]NCIA(?:\s*[\:\-]\s*|\s+)(\d{1,2})[\/\-\.](\d{1,2})(?:[\/\-\.]\d{2,4})?/i) ||
+                    txt.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/);
+      if (match) {
+        const d = String(match[1]).padStart(2, "0");
+        const m = String(match[2]).padStart(2, "0");
+        return `${d}/${m}`;
+      }
+    }
+    return null;
+  }
+
+  function extrairAlunosFrequenciaDaTela() {
+    const tabela = obterTabelaFrequenciaAtiva();
     if (!tabela) return { alunos: [], total: 0 };
 
-    const linhas = Array.from(tabela.querySelectorAll("tbody tr"));
+    const linhas = Array.from(tabela.querySelectorAll("tr"));
     const alunos = [];
 
     linhas.forEach((linha, idx) => {
-      const td3 = linha.querySelector("td:nth-child(3)");
-      let nome = td3 ? limparNomeAluno(td3.innerText || "") : "";
-      if (!nome || nome.length < 3) {
+      // Pula cabeçalhos ou linhas que não contêm checkboxes
+      const cbs = Array.from(linha.querySelectorAll("input[type='checkbox']"));
+      if (cbs.length === 0) return;
+
+      const tds = Array.from(linha.querySelectorAll("td"));
+      if (tds.length === 0) return;
+
+      let nome = "";
+      // No SIGEduc frequência, a 3ª coluna (índice 2) normalmente é o nome do estudante
+      if (tds.length >= 3) {
+        nome = limparNomeAluno(tds[2].innerText || "");
+      }
+      if (!nome || nome.length < 3 || nome.split(/\s+/).length < 2) {
         nome = extrairNomeDaLinha(linha);
       }
       if (!nome) return;
 
-      const cbs = Array.from(linha.querySelectorAll("input[type='checkbox']"));
       const habilitados = cbs.filter(c => !c.disabled && !c.getAttribute("disabled"));
       const desabilitados = cbs.filter(c => c.disabled || c.getAttribute("disabled"));
 
@@ -1345,7 +1408,7 @@
         status = mapaAlunosData[aluno.nome];
       }
 
-      const ehFalta = (status === "F" || status === "X" || status === "1");
+      const ehFalta = (status === "F" || status === "X" || status === "1" || status === "true" || status === true || status === "V" || status === "VERDADEIRO");
       if (ehFalta) {
         faltososCount++;
         aluno.checkboxes.forEach(chk => alterarCheckbox(chk, true));
@@ -1565,7 +1628,26 @@
     widget.style.display = "flex";
   }
 
+  let loteExecutandoAgora = false;
+
+  async function aguardarTabelaFrequenciaCarregar(timeoutMs = 8000, dataEsperada = null) {
+    const inicio = Date.now();
+    const dEsperadaNorm = dataEsperada ? dataEsperada.substring(0, 5) : null;
+    while (Date.now() - inicio < timeoutMs) {
+      const { total } = extrairAlunosFrequenciaDaTela();
+      if (total > 0) {
+        if (!dEsperadaNorm) return true;
+        const dTela = extrairDataDaTabelaFrequencia();
+        if (dTela === dEsperadaNorm) return true;
+      }
+      await new Promise(r => setTimeout(r, 250));
+    }
+    const { total } = extrairAlunosFrequenciaDaTela();
+    return total > 0;
+  }
+
   async function verificarEExecutarFilaLote() {
+    if (loteExecutandoAgora) return;
     if (typeof window === "undefined" || !window.sessionStorage) return;
     const raw = sessionStorage.getItem("sgn_lote_frequencia");
     if (!raw) return;
@@ -1583,68 +1665,107 @@
       return;
     }
 
-    let tela = detectarTela();
-    const indiceAtual = config.indiceAtual || 0;
-    const total = config.filaDatas.length;
+    loteExecutandoAgora = true;
 
-    if (indiceAtual >= total) {
-      sessionStorage.removeItem("sgn_lote_frequencia");
-      const widget = document.getElementById("sgn-progresso-lote");
-      if (widget) widget.style.display = "none";
-      exibirToast("Lote Concluído! 🎉", `Todas as ${total} datas foram lançadas com sucesso!`, "sucesso", 8000);
-      return;
-    }
+    try {
+      while (true) {
+        const configAtualRaw = sessionStorage.getItem("sgn_lote_frequencia");
+        if (!configAtualRaw) break;
+        config = JSON.parse(configAtualRaw);
+        if (!config.ativo) break;
 
-    const dataAtual = config.filaDatas[indiceAtual];
-    exibirBarraProgressoLote(indiceAtual + 1, total, dataAtual);
+        const indiceAtual = config.indiceAtual || 0;
+        const total = config.filaDatas.length;
 
-    if (tela === "frequencia_dia") {
-      // 1. Estamos na tela de frequência do dia
-      const mapaData = (config.dadosFrequenciaPorData && config.dadosFrequenciaPorData[dataAtual]) || null;
-      if (mapaData) {
-        marcarFaltososPorMapaData(mapaData);
-      } else {
-        marcarPresencaTodos();
-      }
+        if (indiceAtual >= total) {
+          sessionStorage.removeItem("sgn_lote_frequencia");
+          const widget = document.getElementById("sgn-progresso-lote");
+          if (widget) widget.style.display = "none";
+          exibirToast("Lote Concluído! 🎉", `Todas as ${total} datas foram lançadas com sucesso!`, "sucesso", 8000);
+          break;
+        }
 
-      await new Promise(r => setTimeout(r, 450));
+        const dataAtual = config.filaDatas[indiceAtual];
+        exibirBarraProgressoLote(indiceAtual + 1, total, dataAtual);
 
-      if (config.autoGravar && config.senha) {
-        exibirToast("Gravando Chamada...", `Confirmando presença do dia ${dataAtual} com senha...`, "info", 3000);
-        const resGravar = await submeterComSenha(config.senha);
-        if (!resGravar.sucesso) {
-          exibirToast("Atenção na Gravação", resGravar.erro || "Verifique a senha no site.", "aviso", 6000);
-          return;
+        const pedacos = dataAtual.split(/[\/\-\.]/);
+        const dia = parseInt(pedacos[0], 10);
+        const mes = pedacos.length > 1 ? parseInt(pedacos[1], 10) : null;
+        const dataAtualNorm = dataAtual.substring(0, 5);
+
+        // PASSO 1: Verificar se a tabela de alunos da data atual já está na tela
+        let alunosInfo = extrairAlunosFrequenciaDaTela();
+        let dataNaTela = extrairDataDaTabelaFrequencia();
+
+        if (alunosInfo.total === 0 || (dataNaTela && dataNaTela !== dataAtualNorm)) {
+          exibirToast("Abrindo Data...", `Clicando no dia ${dataAtual} no calendário...`, "info", 2000);
+          let clicou = encontrarEClicarDiaNoCalendario(dia, mes);
+          if (!clicou) {
+            await new Promise(r => setTimeout(r, 800));
+            clicou = encontrarEClicarDiaNoCalendario(dia, mes);
+          }
+
+          if (!clicou) {
+            exibirToast("Data Não Encontrada", `Não foi possível localizar o dia ${dataAtual} no calendário. Clique manualmente na data para continuar.`, "aviso", 9000);
+            break;
+          }
+
+          // Aguarda o AJAX do SIGEduc carregar a lista de alunos
+          const carregou = await aguardarTabelaFrequenciaCarregar(8000, dataAtualNorm);
+          if (!carregou) {
+            exibirToast("Aguardando Alunos", `Aguardando a lista de estudantes do dia ${dataAtual}...`, "aviso", 5000);
+            break;
+          }
+          alunosInfo = extrairAlunosFrequenciaDaTela();
+        }
+
+        // PASSO 2: Marcar presenças e faltas da data atual
+        await new Promise(r => setTimeout(r, 350));
+        const mapaData = (config.dadosFrequenciaPorData && config.dadosFrequenciaPorData[dataAtual]) || null;
+        let resMarcacao = null;
+        if (mapaData) {
+          resMarcacao = marcarFaltososPorMapaData(mapaData);
+        } else {
+          resMarcacao = marcarPresencaTodos();
+        }
+
+        exibirToast("Frequência Marcada!", `Dia ${dataAtual}: ${resMarcacao.mensagem || "presenças e faltas aplicadas."}`, "sucesso", 3000);
+        await new Promise(r => setTimeout(r, 600));
+
+        // PASSO 3: Gravar com senha se solicitado
+        if (config.autoGravar && config.senha) {
+          exibirToast("Gravando Chamada...", `Confirmando presença do dia ${dataAtual} com senha...`, "info", 3000);
+          const resGravar = await submeterComSenha(config.senha);
+          if (!resGravar.sucesso) {
+            exibirToast("Atenção na Gravação", resGravar.erro || "Verifique a senha no site.", "aviso", 6000);
+            break;
+          }
+          await new Promise(r => setTimeout(r, 1500));
+        }
+
+        // PASSO 4: Avançar para a próxima data na fila
+        config.indiceAtual = indiceAtual + 1;
+        sessionStorage.setItem("sgn_lote_frequencia", JSON.stringify(config));
+
+        if (config.indiceAtual < total) {
+          const proxData = config.filaDatas[config.indiceAtual];
+          const pedacosProx = proxData.split(/[\/\-\.]/);
+          const diaProx = parseInt(pedacosProx[0], 10);
+          const mesProx = pedacosProx.length > 1 ? parseInt(pedacosProx[1], 10) : null;
+          const proxDataNorm = proxData.substring(0, 5);
+
+          exibirToast("Próxima Data", `Avançando para o dia ${proxData}...`, "info", 2500);
+          await new Promise(r => setTimeout(r, 800));
+
+          const clicouProx = encontrarEClicarDiaNoCalendario(diaProx, mesProx);
+          if (clicouProx) {
+            await new Promise(r => setTimeout(r, 600));
+            await aguardarTabelaFrequenciaCarregar(8000, proxDataNorm);
+          }
         }
       }
-
-      config.indiceAtual = indiceAtual + 1;
-      sessionStorage.setItem("sgn_lote_frequencia", JSON.stringify(config));
-
-      await new Promise(r => setTimeout(r, 600));
-      voltarParaCalendario();
-
-    } else {
-      // 2. Estamos no Calendário Mensal (ou transição de página)
-      const pedacos = dataAtual.split(/[\/\-\.]/);
-      const dia = parseInt(pedacos[0], 10);
-      const mes = pedacos.length > 1 ? parseInt(pedacos[1], 10) : null;
-
-      // Aguarda 600ms para estabilização do DOM
-      await new Promise(r => setTimeout(r, 600));
-
-      let clicou = encontrarEClicarDiaNoCalendario(dia, mes);
-      if (!clicou) {
-        // Tenta mais uma vez após 800ms (para requisições AJAX do RichFaces)
-        await new Promise(r => setTimeout(r, 800));
-        clicou = encontrarEClicarDiaNoCalendario(dia, mes);
-      }
-
-      if (clicou) {
-        exibirToast("Data Selecionada!", `Abrindo chamada do dia ${dataAtual}...`, "info", 3000);
-      } else {
-        exibirToast("Data Não Encontrada", `Não foi possível localizar o dia ${dataAtual} no calendário ativo. Clique na data manualmente no site para continuar o lote.`, "aviso", 9000);
-      }
+    } finally {
+      loteExecutandoAgora = false;
     }
   }
 
@@ -1686,11 +1807,7 @@
     if (typeof document === "undefined" || !document.body) return;
     if (document.getElementById("sgn-barra-frequencia")) return;
 
-    let tabela = document.querySelector("#tableAlunos");
-    if (!tabela) {
-      const tabelas = Array.from(document.querySelectorAll("table"));
-      tabela = tabelas.find(t => t.querySelector("tbody tr") && t.querySelector("input[type='checkbox']"));
-    }
+    const tabela = obterTabelaFrequenciaAtiva();
     if (!tabela) return;
 
     const barra = document.createElement("div");
@@ -2080,6 +2197,8 @@
     preencherNotasNaTela,
     preencherFVNaTela,
     submeterComSenha,
+    obterTabelaFrequenciaAtiva,
+    extrairDataDaTabelaFrequencia,
     extrairAlunosFrequenciaDaTela,
     marcarPresencaTodos,
     marcarFaltososPorLista,

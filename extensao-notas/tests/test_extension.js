@@ -1129,6 +1129,10 @@ async function executarTodosOsTestes() {
   assert.strictEqual(excel.ehFalta("x"), true, "'x' minúsculo deve ser reconhecido como Falta");
   assert.strictEqual(excel.ehFalta("1"), true, "'1' deve ser reconhecido como Falta");
   assert.strictEqual(excel.ehFalta("falta"), true, "'falta' deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta(true), true, "Boolean true (checkbox marcado) deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta("true"), true, "'true' deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta("verdadeiro"), true, "'verdadeiro' deve ser reconhecido como Falta");
+  assert.strictEqual(excel.ehFalta(false), false, "Boolean false (checkbox desmarcado) deve ser reconhecido como Presença");
   assert.strictEqual(excel.ehFalta("P"), false, "'P' deve ser reconhecido como Presença");
   assert.strictEqual(excel.ehFalta("."), false, "'.' deve ser reconhecido como Presença");
   assert.strictEqual(excel.ehFalta(""), false, "Célula vazia deve ser reconhecida como Presença");
@@ -1200,6 +1204,13 @@ async function executarTodosOsTestes() {
 
   // Validação de detecção de tela
   assert.strictEqual(content.detectarTela(), "frequencia_dia", "Tela com #tableAlunos deve ser detectada como frequencia_dia");
+
+  // Validação de extração da data da chamada no cabeçalho
+  const divTituloFreq = envFreq.document.createElement("div");
+  divTituloFreq.className = "rich-panel-header";
+  divTituloFreq.innerText = "LISTA DE FREQUÊNCIA 05/08/2026";
+  envFreq.document.body.insertBefore(divTituloFreq, tabFrequenciaDOM);
+  assert.strictEqual(content.extrairDataDaTabelaFrequencia(), "05/08", "Deve extrair '05/08' do título 'LISTA DE FREQUÊNCIA 05/08/2026'");
 
   // A) Teste: 100% Presentes (Desmarca todos os habilitados)
   // Primeiro, marca alguns como falta (checked = true)
