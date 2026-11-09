@@ -67,14 +67,21 @@ The codebase represents a complete cyber-physical ecosystem spanning:
 | `scripts/serve-local.mjs` | 95 | **Local Static Server**: Native Node.js HTTP server serving `escola-nfc-web` on port 5500. |
 | `tests/` | 47 tests | **Unit Test Suite**: 47 automated tests verifying CSV processing, configuration builders, UUID generation, phone masking, and RBAC rules. |
 
-### 2.5 Offline Docker Worktree (`escola-nfc-web-offline/`)
+### 2.5 Offline Supabase Worktree (`escola-nfc-web-offline/`)
 | File / Directory | Purpose & Technical Scope |
 |---|---|
-| `docker-compose.yml` | Multi-container stack provisioning Kong (`:54321`), PostgreSQL 15 (`:54322`), GoTrue, PostgREST, and Supabase Studio (`:54323`). |
-| `lab.cmd` / `lab-menu.ps1` | Windows interactive terminal menu for managing the offline environment. |
-| `lab-ligar.cmd` / `lab-estado.ps1` | Container lifecycle control and status inspection scripts. |
-| `scripts/lab-setup.mjs` | Network discovery script detecting LAN IP and rewriting `.env.local` and `config.toml` dynamically. |
-| `docs/` | Step-by-step Portuguese documentation and tutorials for non-technical school staff. |
+| `lab/offline` (Git Worktree) | Dedicated worktree on branch `lab/offline` of `https://github.com/devmagary/escola-nfc-web.git` for on-premise, zero-internet school operation. |
+| `supabase/config.toml` | Pinned Supabase CLI (v2.121.0) local stack provisioning Kong (`:54321`), PostgreSQL 15 (`:54322`), GoTrue, PostgREST, Storage (`fotos-alunos`), Inbucket (`:54324`), and Supabase Studio (`:54323`). |
+| `supabase/seed.sql` | Realistic offline mock dataset for student registration, normalized UIDs, and access log simulation. |
+| `lab.cmd` / `lab-menu.ps1` | Windows interactive terminal menu (TUI) with real-time status indicators for Docker, DB, Web, and ESP32. |
+| `lab-ligar.cmd` / `lab-desligar.cmd` | Container lifecycle control and automated local server startup scripts. |
+| `lab-checar.cmd` / `lab-estado.ps1` | Diagnostic scripts and background daemon for port and health inspection. |
+| `lab-firewall-liberar.cmd` | Automatic Windows Firewall configuration opening ports 54321, 5500, and 54323 for the local school network. |
+| `lab-criar-atalhos.cmd` / `lab-atalhos.ps1` | Automatic desktop shortcut creation for school operators. |
+| `scripts/lab-setup.mjs` | Network discovery script detecting LAN IP (filtering out virtual adapters) and rewriting `.env.local` automatically. |
+| `scripts/check-lab.mjs` | Multi-point offline laboratory health and IP inspector. |
+| `tests/` | 54 automated unit and integration tests passing (`npm test`). |
+| `AGENT.md` / `PROJECT.md` | Tailored AI agent operational manual and complete architectural specification committed and pushed to `lab/offline`. |
 
 ### 2.6 Embedded Firmware (`esp32-nfc-acesso/` & `esp32s3-nfc-acesso/`)
 | File | Lines | Purpose & Technical Scope |
