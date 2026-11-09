@@ -1474,56 +1474,74 @@
     };
   }
 
-  function encontrarTabelaDoMes(mes) {
+  function encontrarContainerDoMes(mes) {
     if (!mes || mes < 1 || mes > 12) return null;
-    const nomeMesNorm = normalizarTextoSimples(MESES[mes - 1]);
+    const nomeMes = MESES[mes - 1]; // ex: "Agosto"
+    const nomeMesNorm = normalizarTextoSimples(nomeMes);
     const outrosMeses = MESES.filter((_, idx) => idx !== (mes - 1)).map(m => normalizarTextoSimples(m));
 
-    const todasTabelas = Array.from(document.querySelectorAll("table"));
-    const tabelasFolha = todasTabelas.filter(t => t.querySelectorAll("table").length === 0);
+    // 1. Procura por elementos de título do mês (cabeçalho de painel, caption, th, h1-h5, div, b, strong)
+    const candidatos = Array.from(document.querySelectorAll("caption, th, .rich-panel-header, h1, h2, h3, h4, h5, div, span, b, strong, td"))
+      .filter(el => {
+        const txt = normalizarTextoSimples(el.innerText || el.textContent || "");
+        return txt === nomeMesNorm || txt.startsWith(nomeMesNorm + " ") || txt.startsWith(nomeMesNorm + "/");
+      });
 
-    // 1. Tabela folha cujo texto contém o mês desejado e nenhum outro mês
-    for (const tab of tabelasFolha) {
-      const txt = normalizarTextoSimples(tab.innerText || "");
-      if (txt.includes(nomeMesNorm) && !outrosMeses.some(om => txt.includes(om))) {
-        return tab;
+    for (const elTitulo of candidatos) {
+      // Sobe na hierarquia DOM para encontrar o container específico daquele mês
+      let container = elTitulo.parentElement;
+      while (container && container !== document.body) {
+        const txtC = normalizarTextoSimples(container.innerText || "");
+        // Se já englobou o nome de outro mês, passou do container individual
+        if (outrosMeses.some(om => txtC.includes(om))) {
+          break;
+        }
+
+        // Verifica se este container possui links ou células numéricas de dias (dias de 1 a 31)
+        const elementosComNumero = Array.from(container.querySelectorAll("a, button, [onclick], td")).filter(el => {
+          const n = parseInt((el.innerText || el.textContent || "").trim(), 10);
+          return !isNaN(n) && n >= 1 && n <= 31;
+        });
+
+        if (elementosComNumero.length >= 7) {
+          return container;
+        }
+
+        container = container.parentElement;
       }
     }
 
-    // 2. Tabela folha cujo container pai contém o mês desejado e nenhum outro
+    // 2. Busca direta por tabelas cujo innerText contenha o mês desejado e nenhum outro
+    const todasTabelas = Array.from(document.querySelectorAll("table")).filter(t => {
+      const txt = normalizarTextoSimples(t.innerText || "");
+      return txt.includes(nomeMesNorm) && !outrosMeses.some(om => txt.includes(om));
+    });
+
+    if (todasTabelas.length > 0) {
+      todasTabelas.sort((a, b) => a.querySelectorAll("*").length - b.querySelectorAll("*").length);
+      return todasTabelas[0];
+    }
+
+    // 3. Fallback: Procura tabela folha cujo container pai contenha o mês
+    const tabelasFolha = Array.from(document.querySelectorAll("table")).filter(t => t.querySelectorAll("table").length === 0);
     for (const tab of tabelasFolha) {
-      const pai = tab.closest("div, td, section, fieldset, form, .calendario, .month") || tab.parentElement;
+      const pai = tab.closest("div, td, section, fieldset, form, .calendario, .month, .rich-panel") || tab.parentElement;
       if (pai) {
         const txtPai = normalizarTextoSimples(pai.innerText || "");
         if (txtPai.includes(nomeMesNorm) && !outrosMeses.some(om => txtPai.includes(om))) {
-          return tab;
+          return pai;
         }
       }
     }
 
-    // 3. Qualquer tabela cujo texto contenha o mês
-    for (const tab of todasTabelas) {
-      const txt = normalizarTextoSimples(tab.innerText || "");
-      if (txt.includes(nomeMesNorm)) {
-        return tab;
-      }
-    }
-
-    // 4. Elementos de cabeçalho ou título com o nome do mês
-    const cabecalhos = Array.from(document.querySelectorAll("caption, th, h1, h2, h3, h4, h5, div, span, b, strong")).filter(el => {
-      const txt = normalizarTextoSimples(el.innerText || "");
-      return txt === nomeMesNorm || txt.startsWith(nomeMesNorm);
-    });
-    for (const el of cabecalhos) {
-      const container = el.closest("div, table, section, fieldset, td") || el.parentElement;
-      if (container) {
-        const tab = container.querySelector("table");
-        if (tab) return tab;
-        return container;
-      }
-    }
-
     return null;
+  }
+
+  function encontrarTabelaDoMes(mes) {
+    const container = encontrarContainerDoMes(mes);
+    if (!container) return null;
+    if (container.tagName === "TABLE") return container;
+    return container.querySelector("table") || container;
   }
 
   function acionarCliqueElemento(el) {
@@ -1532,23 +1550,34 @@
       if (typeof el.scrollIntoView === "function") {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
       }
-      el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
-      el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
-      el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
-      el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+
+      // Efeito visual temporário para o usuário acompanhar o clique na data
+      try {
+        const bgOriginal = el.style.backgroundColor;
+        const outlineOriginal = el.style.outline;
+        el.style.backgroundColor = "#ffeb3b";
+        el.style.outline = "2px solid #f57c00";
+        setTimeout(() => {
+          try {
+            el.style.backgroundColor = bgOriginal;
+            el.style.outline = outlineOriginal;
+          } catch (e) {}
+        }, 1200);
+      } catch (e) {}
+
+      if (typeof el.focus === "function") {
+        el.focus();
+      }
+
+      // No JSF/RichFaces (A4J), el.click() nativo já dispara os manipuladores com segurança
       if (typeof el.click === "function") {
         el.click();
+      } else {
+        el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
       }
       return true;
     } catch (e) {
-      try {
-        if (typeof el.click === "function") {
-          el.click();
-          return true;
-        }
-      } catch (err) {
-        console.error("Erro ao clicar no elemento do calendário:", err);
-      }
+      console.error("Erro ao clicar no elemento do calendário:", e);
     }
     return false;
   }
@@ -1582,8 +1611,17 @@
       }
     }
 
-    // 1. Localiza a raiz específica do mês (o quadrado do mês no calendário anual)
-    const raizBusca = mesNum ? (encontrarTabelaDoMes(mesNum) || document.body) : document.body;
+    // 1. Localiza o container específico e isolado do mês no calendário anual
+    const containerMes = mesNum ? encontrarContainerDoMes(mesNum) : null;
+    if (!containerMes && mesNum) {
+      console.warn(`[SIGEduc Auto] Container isolado do mês ${mesNum} (${MESES[mesNum - 1]}) não localizado.`);
+    }
+
+    // A busca DEVE ocorrer restrita ao container do mês para não colidir com outros meses do ano
+    const raizBusca = containerMes || (mesNum ? null : document.body);
+    if (!raizBusca) {
+      return false;
+    }
 
     // 2. Procura em links <a> dentro do quadrado do mês
     const links = Array.from(raizBusca.querySelectorAll("a"));
@@ -1692,6 +1730,11 @@
       }
       await new Promise(r => setTimeout(r, 250));
     }
+    // Verificação estrita: se uma data foi requisitada, só retorna true se ela realmente estiver visível na tabela!
+    if (dEsperadaNorm) {
+      const dTelaFinal = extrairDataDaTabelaFrequencia();
+      return dTelaFinal === dEsperadaNorm;
+    }
     const { total } = extrairAlunosFrequenciaDaTela();
     return total > 0;
   }
@@ -1749,22 +1792,27 @@
 
         if (alunosInfo.total === 0 || (dataNaTela && dataNaTela !== dataAtualNorm)) {
           exibirToast("Abrindo Data...", `Clicando no dia ${dataAtual} no calendário...`, "info", 2000);
-          let clicou = false;
-          for (let tentativa = 0; tentativa < 4; tentativa++) {
-            clicou = encontrarEClicarDiaNoCalendario(dia, mes);
-            if (clicou) break;
-            await new Promise(r => setTimeout(r, 600));
+          
+          let carregou = false;
+          for (let tentativa = 1; tentativa <= 3; tentativa++) {
+            const clicou = encontrarEClicarDiaNoCalendario(dia, mes);
+            if (!clicou) {
+              await new Promise(r => setTimeout(r, 600));
+              continue;
+            }
+
+            // Aguarda a lista de alunos carregar com a data estritamente correspondente
+            carregou = await aguardarTabelaFrequenciaCarregar(5000, dataAtualNorm);
+            if (carregou) break;
+
+            if (tentativa < 3) {
+              exibirToast("Re-tentando Data", `Tentativa ${tentativa} de carregar o dia ${dataAtual}...`, "aviso", 2000);
+              await new Promise(r => setTimeout(r, 800));
+            }
           }
 
-          if (!clicou) {
-            exibirToast("Data Não Encontrada", `Não foi possível localizar o dia ${dataAtual} no calendário. Clique manualmente na data para continuar.`, "aviso", 9000);
-            break;
-          }
-
-          // Aguarda o AJAX do SIGEduc carregar a lista de alunos
-          const carregou = await aguardarTabelaFrequenciaCarregar(8000, dataAtualNorm);
           if (!carregou) {
-            exibirToast("Aguardando Alunos", `Aguardando a lista de estudantes do dia ${dataAtual}...`, "aviso", 5000);
+            exibirToast("Data Não Encontrada", `Não foi possível carregar a lista de alunos do dia ${dataAtual}. Clique na data no calendário para prosseguir.`, "aviso", 10000);
             break;
           }
           alunosInfo = extrairAlunosFrequenciaDaTela();
@@ -1817,7 +1865,7 @@
           const clicouProx = encontrarEClicarDiaNoCalendario(diaProx, mesProx);
           if (clicouProx) {
             await new Promise(r => setTimeout(r, 600));
-            await aguardarTabelaFrequenciaCarregar(8000, proxDataNorm);
+            await aguardarTabelaFrequenciaCarregar(6000, proxDataNorm);
           }
         }
       }
@@ -2267,6 +2315,8 @@
     marcarFaltososPorMapaData,
     encontrarEClicarDiaNoCalendario,
     encontrarTabelaDoMes,
+    encontrarContainerDoMes,
+    aguardarTabelaFrequenciaCarregar,
     normalizarTextoSimples,
     voltarParaCalendario,
     verificarEExecutarFilaLote,

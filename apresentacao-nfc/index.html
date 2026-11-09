@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Mundo Maker: O Cérebro Mágico (ESP32) &amp; Seus Sentidos</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            display: ['"Space Grotesk"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              cyan: '#06b6d4',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              rose: '#f43f5e',
+              purple: '#8b5cf6',
+              dark: '#0b1120',
+              card: '#151e32'
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'float': 'float 3s ease-in-out infinite',
+            'flow': 'flowDash 1.2s linear infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-6px)' },
+            },
+            flowDash: {
+              to: { strokeDashoffset: '-20' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Estilos globais e ajustes visuais responsivos */
+    * {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #070d19;
+      color: #f1f5f9;
+      overflow-x: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .wire-flow {
+      stroke-dasharray: 6, 6;
+      animation: flowDash 0.8s linear infinite;
+    }
+
+    /* Animação suave para as pás da catraca */
+    .turnstile-arm {
+      transform-origin: 350px 175px;
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .turnstile-open {
+      transform: rotate(85deg);
+    }
+
+    /* Efeito de respiração suave para o LED ciano */
+    @keyframes breathingLed {
+      0%, 100% { fill-opacity: 0.3; filter: drop-shadow(0 0 2px #06b6d4); }
+      50% { fill-opacity: 1; filter: drop-shadow(0 0 16px #22d3ee); }
+    }
+
+    .led-breathing {
+      animation: breathingLed 2.2s infinite ease-in-out;
+    }
+
+    /* Esconder barra de rolagem horizontal mantendo swipe */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Barra de rolagem geral customizada */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b1120;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+
+    /* Ajuste de slider touch em mobile */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #1e293b;
+      border-radius: 999px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 24px;
+      width: 24px;
+      border-radius: 50%;
+      background: #06b6d4;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(6,182,212,0.6);
+      border: 2px solid #ffffff;
+    }
+
+    /* =====================================================================
+       OTIMIZAÇÕES RESPONSIVAS PARA MODO PAISAGEM EM SMARTPHONES E TABLETS
+       ===================================================================== */
+    @media (orientation: landscape) and (max-height: 580px) {
+      header {
+        height: 3.25rem !important;
+      }
+      .hero-section {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+      }
+      .sec-padding {
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+      }
+      /* Layout Lado a Lado na Catraca em Modo Paisagem */
+      .landscape-split {
+        display: grid !important;
+        grid-template-columns: 1.2fr 1fr !important;
+        gap: 1.25rem !important;
+        align-items: start !important;
+      }
+      .sticky-landscape-svg {
+        position: sticky;
+        top: 3.75rem;
+        z-index: 20;
+      }
+      .landscape-grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .mobile-btn-touch {
+        min-height: 48px;
+      }
+    }
+  </style>
+</head>
+<body class="selection:bg-cyan-500 selection:text-slate-950">
+
+  <!-- TOPO / CABEÇALHO RESPONSIVO -->
+  <header class="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/85 border-b border-slate-800/80 transition-all">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5 sm:space-x-3">
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-cyan-500/20 flex-shrink-0">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6 text-slate-950 font-bold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div class="truncate">
+          <span class="font-display font-bold text-base sm:text-lg text-white tracking-tight">Mundo Maker</span>
+          <span class="hidden md:inline-block text-xs px-2 py-0.5 ml-2 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800/60 font-medium">Guia Interativo</span>
+        </div>
+      </div>
+
+      <!-- Links rápidos para Desktop / Tablet Paisagem -->
+      <nav class="hidden lg:flex items-center space-x-1 text-xs sm:text-sm font-medium text-slate-300">
+        <a href="#catraca" class="px-3 py-1.5 rounded-lg hover:text-cyan-400 hover:bg-slate-900 transition">A Catraca NFC</a>
+        <a href="#gvs" class="px-3 py-1.5 rounded-lg hover:text-emerald-400 hover:bg-slate-900 transition">Os 3 Fios Mágicos</a>
+        <a href="#sentidos" class="px-3 py-1.5 rounded-lg hover:text-amber-400 hover:bg-slate-900 transition">Os 5 Sentidos</a>
+        <a href="#curiosidades" class="px-3 py-1.5 rounded-lg hover:text-purple-400 hover:bg-slate-900 transition">Dicas de Ouro</a>
+      </nav>
+
+      <!-- Botão de Áudio Otimizado para Toque (Sem emoticons) -->
+      <div class="flex items-center space-x-2">
+        <button id="btn-toggle-sound" onclick="toggleAudio()" class="flex items-center space-x-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700/80 text-xs font-semibold text-slate-200 hover:border-cyan-500 active:scale-95 transition">
+          <span id="sound-icon-container" class="w-4 h-4 flex items-center justify-center">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            </svg>
+          </span>
+          <span id="sound-text" class="hidden xs:inline text-xs">Som: Ligado</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- BARRA DE NAVEGAÇÃO RÁPIDA HORIZONTAL EM MOBILE (SWIPE) -->
+  <div class="lg:hidden sticky top-14 z-40 bg-slate-950/90 border-b border-slate-800/80 backdrop-blur-md px-3 py-2 overflow-x-auto no-scrollbar flex gap-2">
+    <a href="#catraca" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 text-cyan-400 border border-cyan-900/50 whitespace-nowrap active:bg-cyan-950">Catraca NFC</a>
+    <a href="#gvs" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 text-emerald-400 border border-emerald-900/50 whitespace-nowrap active:bg-emerald-950">3 Fios (G-V-S)</a>
+    <a href="#sentidos" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 text-amber-400 border border-amber-900/50 whitespace-nowrap active:bg-amber-950">5 Sentidos</a>
+    <a href="#curiosidades" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 text-purple-400 border border-purple-900/50 whitespace-nowrap active:bg-purple-950">Dúvidas Frequentes</a>
+  </div>
+
+  <!-- HERO: AS 4 METÁFORAS -->
+  <section class="hero-section relative pt-8 sm:pt-12 pb-12 sm:pb-16 overflow-hidden">
+    <!-- Luzes de fundo decorativas -->
+    <div class="absolute top-0 left-1/4 w-72 sm:w-96 h-72 sm:h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute top-20 right-1/4 w-72 sm:w-96 h-72 sm:h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-xs text-slate-300 mb-5 animate-float">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        Sem jargões • Feito para famílias, estudantes e gestores
+      </div>
+      <h1 class="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-extrabold text-white tracking-tight leading-tight max-w-4xl mx-auto px-2">
+        Como um chip minúsculo abre portas e <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-300">enxerga o mundo?</span>
+      </h1>
+      <p class="mt-4 text-sm sm:text-base md:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed px-2">
+        Você não precisa ser engenheiro nem saber programar para entender a mágica da robótica. Veja como as peças do sistema funcionam como o corpo humano!
+      </p>
+
+      <!-- As 4 Metáforas Ilustradas (1 coluna no celular, 2 em tablet/paisagem, 4 em desktop) -->
+      <div class="mt-8 sm:mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 text-left">
+        <!-- O Cérebro -->
+        <div class="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-cyan-500/30 hover:border-cyan-400 transition hover:-translate-y-1 duration-200">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+            </svg>
+          </div>
+          <h3 class="font-bold text-white text-base sm:text-lg">O ESP32 é o Cérebro</h3>
+          <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            Pensa 240 milhões de vezes por segundo. Toma as decisões ("Libero o aluno?", "Acendo a luz?") em menos de 1 milissegundo.
+          </p>
+        </div>
+
+        <!-- Os Sentidos -->
+        <div class="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-emerald-500/30 hover:border-emerald-400 transition hover:-translate-y-1 duration-200">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </div>
+          <h3 class="font-bold text-white text-base sm:text-lg">Sensores são os Sentidos</h3>
+          <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            Olhos para ver luz, ouvidos para escutar sons e tato para sentir aproximação de cartões e batidas na porta.
+          </p>
+        </div>
+
+        <!-- Os Músculos -->
+        <div class="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-amber-500/30 hover:border-amber-400 transition hover:-translate-y-1 duration-200">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h3 class="font-bold text-white text-base sm:text-lg">Relés: Os Músculos</h3>
+          <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            O cérebro trabalha em baixa voltagem (3.3V). O relé é o "músculo forte" que ele aciona para empurrar trancas e catracas pesadas.
+          </p>
+        </div>
+
+        <!-- A Régua Mágica -->
+        <div class="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-purple-500/30 hover:border-purple-400 transition hover:-translate-y-1 duration-200">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h3 class="font-bold text-white text-base sm:text-lg">A Régua de Tomadas</h3>
+          <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            A placa de expansão organiza toda a ligação em 3 cores fáceis: Preto (Terra), Vermelho (Energia) e Amarelo (Sinal).
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO 1: O SIMULADOR INTERATIVO DA CATRACA NFC -->
+  <section id="catraca" class="sec-padding py-10 sm:py-16 bg-slate-900/60 border-y border-slate-800">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      
+      <!-- Cabeçalho da Seção -->
+      <div class="text-center max-w-3xl mx-auto mb-6 sm:mb-10">
+        <span class="text-cyan-400 font-semibold text-xs tracking-wider uppercase bg-cyan-950/80 px-3 py-1 rounded-full border border-cyan-800/50">Experiência Interativa 1</span>
+        <h2 class="text-xl sm:text-3xl md:text-4xl font-display font-extrabold text-white mt-2.5 sm:mt-3">A Catraca Escolar em Ação</h2>
+        <p class="text-slate-300 text-xs sm:text-sm md:text-base mt-1.5 max-w-xl mx-auto">
+          Veja o que acontece no milissegundo em que você aproxima o cartão. Teste os botões ou toque diretamente no crachá!
+        </p>
+      </div>
+
+      <!-- Container do Simulador SVG + Painel de Controle (Adaptado para Retrato e Paisagem) -->
+      <div class="landscape-split grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 items-start">
+        
+        <!-- Canvas SVG Interativo (Visualização gráfica da Portaria) -->
+        <div class="sticky-landscape-svg lg:col-span-8 bg-slate-950 rounded-2xl sm:rounded-3xl border border-slate-800 p-3 sm:p-5 shadow-2xl relative overflow-hidden">
+          
+          <!-- Badges de Status Flutuantes -->
+          <div class="absolute top-4 sm:top-5 left-4 sm:left-5 flex flex-wrap gap-1.5 sm:gap-2 z-20">
+            <div id="badge-wifi" class="px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1.5 transition-colors">
+              <span id="wifi-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span id="wifi-label">Wi-Fi Conectado</span>
+            </div>
+            <div id="badge-reader" class="px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center gap-1.5 transition-colors">
+              <span id="reader-dot" class="w-2 h-2 rounded-full bg-cyan-400"></span>
+              <span id="reader-label">Leitor Pronto</span>
+            </div>
+          </div>
+
+          <!-- SVG Cenário Completo da Catraca -->
+          <svg id="stage-svg" viewBox="0 0 700 400" class="w-full h-auto select-none rounded-xl" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="gateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#334155"/>
+                <stop offset="100%" stop-color="#0f172a"/>
+              </linearGradient>
+              <linearGradient id="boardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#1e293b"/>
+                <stop offset="100%" stop-color="#090d16"/>
+              </linearGradient>
+              <linearGradient id="nfcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#dc2626"/>
+                <stop offset="100%" stop-color="#991b1b"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Piso do Pavilhão Escolar -->
+            <rect x="0" y="320" width="700" height="80" fill="#0b1120" />
+            <line x1="0" y1="320" x2="700" y2="320" stroke="#1e293b" stroke-width="2" />
+            <line x1="60" y1="360" x2="160" y2="360" stroke="#1e293b" stroke-dasharray="8 8" stroke-width="3" />
+            <line x1="300" y1="360" x2="400" y2="360" stroke="#1e293b" stroke-dasharray="8 8" stroke-width="3" />
+
+            <!-- ================= TOTEM / LEITOR NFC (À ESQUERDA) ================= -->
+            <rect x="70" y="140" width="130" height="180" rx="16" fill="url(#gateGrad)" stroke="#334155" stroke-width="2" />
+            <rect x="80" y="150" width="110" height="80" rx="12" fill="#090d16" stroke="#1e293b" stroke-width="1.5" />
+            
+            <!-- Placa Vermelha do Leitor PN532 -->
+            <rect x="92" y="160" width="86" height="60" rx="8" fill="url(#nfcGrad)" stroke="#ef4444" stroke-width="1.5" />
+            <path d="M 125 185 A 10 10 0 0 1 145 185" fill="none" stroke="#fecaca" stroke-width="2.5" stroke-linecap="round" />
+            <path d="M 120 180 A 18 18 0 0 1 150 180" fill="none" stroke="#fecaca" stroke-width="2.5" stroke-linecap="round" />
+            <path d="M 115 175 A 25 25 0 0 1 155 175" fill="none" stroke="#fecaca" stroke-width="2.5" stroke-linecap="round" />
+            <text x="135" y="210" fill="#ffffff" font-size="10" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">APROXIME AQUI</text>
+
+            <!-- O Cartão Escolar (Pode ser clicado/tocado diretamente!) -->
+            <g id="student-card" onclick="simularAcessoValido()" transform="translate(15, 60)" style="transition: transform 0.4s ease-out; cursor: pointer;">
+              <rect x="0" y="0" width="84" height="54" rx="8" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5" filter="drop-shadow(0 6px 12px rgba(0,0,0,0.6))" />
+              <circle cx="20" cy="24" r="11" fill="#e0f2fe" />
+              <path d="M 15 28 A 6 6 0 0 1 25 28" fill="none" stroke="#0369a1" stroke-width="2" />
+              <rect x="38" y="16" width="38" height="6" rx="3" fill="#0369a1" />
+              <rect x="38" y="26" width="26" height="4" rx="2" fill="#0284c7" />
+              <text x="10" y="46" font-size="7" fill="#075985" font-weight="bold">ESCOLA TECH • ALUNO</text>
+            </g>
+
+            <!-- Fios conectando Totem ao Cérebro ESP32 -->
+            <path d="M 200 230 C 230 230, 230 190, 260 190" fill="none" stroke="#64748b" stroke-width="3" stroke-dasharray="4 4" id="wire-totem-esp" />
+
+            <!-- ================= O CÉREBRO: PLACA ESP32-S3 (CENTRO) ================= -->
+            <g transform="translate(260, 110)">
+              <rect x="0" y="0" width="100" height="150" rx="10" fill="url(#boardGrad)" stroke="#38bdf8" stroke-width="1.5" />
+              <g fill="#f59e0b">
+                <rect x="-3" y="15" width="4" height="6" rx="1" /><rect x="-3" y="25" width="4" height="6" rx="1" /><rect x="-3" y="35" width="4" height="6" rx="1" /><rect x="-3" y="45" width="4" height="6" rx="1" />
+                <rect x="-3" y="55" width="4" height="6" rx="1" /><rect x="-3" y="65" width="4" height="6" rx="1" /><rect x="-3" y="75" width="4" height="6" rx="1" /><rect x="-3" y="85" width="4" height="6" rx="1" />
+                <rect x="99" y="15" width="4" height="6" rx="1" /><rect x="99" y="25" width="4" height="6" rx="1" /><rect x="99" y="35" width="4" height="6" rx="1" /><rect x="99" y="45" width="4" height="6" rx="1" />
+                <rect x="99" y="55" width="4" height="6" rx="1" /><rect x="99" y="65" width="4" height="6" rx="1" /><rect x="99" y="75" width="4" height="6" rx="1" /><rect x="99" y="85" width="4" height="6" rx="1" />
+              </g>
+
+              <rect x="15" y="20" width="70" height="55" rx="4" fill="#64748b" stroke="#cbd5e1" stroke-width="1" />
+              <text x="50" y="46" font-size="9" fill="#0f172a" font-weight="bold" font-family="'Space Grotesk', sans-serif" text-anchor="middle">ESP32-S3</text>
+              <text x="50" y="60" font-size="7" fill="#1e293b" text-anchor="middle">Cérebro Dual-Core</text>
+              <rect x="35" y="142" width="30" height="8" rx="2" fill="#94a3b8" />
+
+              <!-- LED RGB WS2812B -->
+              <circle cx="50" cy="100" r="14" fill="#0f172a" stroke="#334155" stroke-width="1.5" />
+              <circle id="esp-led" cx="50" cy="100" r="8" fill="#06b6d4" class="led-breathing" />
+              <text x="50" y="125" font-size="7.5" fill="#94a3b8" text-anchor="middle" font-weight="semibold">Luz LED (GPIO 48)</text>
+            </g>
+
+            <!-- Fios conectando ESP32 à Catraca -->
+            <path d="M 360 190 C 390 190, 400 230, 440 230" fill="none" stroke="#10b981" stroke-width="3" id="wire-esp-gate" />
+
+            <!-- ================= A CATRACA / PORTA FÍSICA (DIREITA) ================= -->
+            <g transform="translate(450, 90)">
+              <rect x="0" y="40" width="90" height="190" rx="14" fill="url(#gateGrad)" stroke="#475569" stroke-width="2" />
+              
+              <!-- Display Digital no Topo -->
+              <rect x="12" y="55" width="66" height="35" rx="6" fill="#020617" stroke="#1e293b" stroke-width="1.5" />
+              <text id="display-screen" x="45" y="77" fill="#38bdf8" font-size="10" font-family="'Space Grotesk', monospace" font-weight="bold" text-anchor="middle">AGUARDANDO</text>
+
+              <!-- Eixo Giratório da Catraca -->
+              <circle cx="90" cy="135" r="16" fill="#1e293b" stroke="#cbd5e1" stroke-width="2" />
+              
+              <!-- Braços Triangulares da Catraca -->
+              <g id="turnstile-arms" class="turnstile-arm" style="transform-origin: 90px 135px;">
+                <rect x="90" y="130" width="110" height="10" rx="5" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.5))" />
+                <rect x="90" y="130" width="110" height="10" rx="5" fill="#cbd5e1" transform="rotate(120, 90, 135)" />
+                <rect x="90" y="130" width="110" height="10" rx="5" fill="#cbd5e1" transform="rotate(240, 90, 135)" />
+              </g>
+
+              <circle id="gate-light" cx="45" cy="105" r="7" fill="#334155" />
+            </g>
+
+            <!-- Legenda explicativa no rodapé do SVG -->
+            <g transform="translate(350, 365)">
+              <rect x="-240" y="-18" width="480" height="34" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+              <text id="svg-caption" x="0" y="4" fill="#94a3b8" font-size="12" font-family="'Plus Jakarta Sans', sans-serif" text-anchor="middle">
+                Toque em um dos botões abaixo ou toque no cartão para testar.
+              </text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Painel de Ações e Botões do Simulador (Otimizado para toque em celular) -->
+        <div class="lg:col-span-4 space-y-3 sm:space-y-4">
+          <div class="bg-slate-950 p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-800 shadow-xl space-y-2.5 sm:space-y-3">
+            <h3 class="text-white font-bold text-sm sm:text-base flex items-center gap-2">
+              <svg class="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              <span>Painel de Testes da Portaria</span>
+            </h3>
+            <p class="text-xs text-slate-400">
+              Toque em uma das situações para testar a resposta imediata:
+            </p>
+
+            <!-- Botão 1: Cartão Válido -->
+            <button onclick="simularAcessoValido()" class="mobile-btn-touch w-full text-left p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-emerald-950/40 border border-emerald-600/50 hover:bg-emerald-900/60 active:scale-98 transition group flex items-center sm:items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+              </div>
+              <div>
+                <strong class="text-emerald-300 text-xs sm:text-sm block">Aproximar Cartão do Aluno</strong>
+                <span class="text-[11px] sm:text-xs text-slate-300 leading-tight block">Aluno matriculado! Gira a catraca em 0 ms e acende Verde.</span>
+              </div>
+            </button>
+
+            <!-- Botão 2: Cartão Bloqueado -->
+            <button onclick="simularAcessoInvalido()" class="mobile-btn-touch w-full text-left p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-rose-950/40 border border-rose-600/50 hover:bg-rose-900/60 active:scale-98 transition group flex items-center sm:items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
+                <svg class="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              </div>
+              <div>
+                <strong class="text-rose-300 text-xs sm:text-sm block">Aproximar Cartão Bloqueado</strong>
+                <span class="text-[11px] sm:text-xs text-slate-300 leading-tight block">Sem autorização. Luz Vermelha e catraca permanece travada.</span>
+              </div>
+            </button>
+
+            <!-- Botão 3: Testar Queda de Internet -->
+            <button onclick="alternarInternet()" id="btn-toggle-net" class="mobile-btn-touch w-full text-left p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-900 border border-slate-700 hover:border-cyan-500 active:scale-98 transition group flex items-center sm:items-start gap-3">
+              <div id="btn-net-icon-container" class="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
+                <svg class="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                </svg>
+              </div>
+              <div>
+                <strong id="btn-net-title" class="text-cyan-300 text-xs sm:text-sm block">Derrubar a Internet (Offline)</strong>
+                <span class="text-[11px] sm:text-xs text-slate-300 leading-tight block">A memória interna do chip continua liberando os alunos sem sinal!</span>
+              </div>
+            </button>
+
+            <!-- Botão 4: Simular Fio Solto -->
+            <button onclick="simularErroHardware()" class="mobile-btn-touch w-full text-left p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-900 border border-slate-700 hover:border-amber-500 active:scale-98 transition group flex items-center sm:items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
+                <svg class="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <strong class="text-amber-300 text-xs sm:text-sm block">Simular Fio Desconectado</strong>
+                <span class="text-[11px] sm:text-xs text-slate-300 leading-tight block">Aviso visual imediato com luz piscando rápido.</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- Caixa Didática -->
+          <div class="bg-cyan-950/30 border border-cyan-800/60 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+            <h4 class="text-cyan-300 font-bold text-xs uppercase tracking-wide flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>O que o cérebro pensou agora?</span>
+            </h4>
+            <p id="chip-thought" class="text-xs text-slate-300 mt-1 leading-relaxed">
+              O ESP32 está em repouso (luz azul-clara suave). O sensor externo emite o campo magnético aguardando o crachá do aluno se aproximar!
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO 2: O PADRÃO DOS 3 FIOS (G-V-S) -->
+  <section id="gvs" class="sec-padding py-10 sm:py-16">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-8 sm:mb-12">
+        <span class="text-emerald-400 font-semibold text-xs tracking-wider uppercase bg-emerald-950/80 px-3 py-1 rounded-full border border-emerald-800/50">O Padrão Sem Mistérios</span>
+        <h2 class="text-xl sm:text-3xl md:text-4xl font-display font-extrabold text-white mt-2.5 sm:mt-3">Por que quase todo sensor usa 3 fios?</h2>
+        <p class="text-slate-300 text-xs sm:text-sm md:text-base mt-1.5 max-w-xl mx-auto">
+          Na placa de conexões, você verá fileiras coloridas com as letras <strong>G</strong>, <strong>V</strong> e <strong>S</strong>. Entenda o que cada uma faz:
+        </p>
+      </div>
+
+      <!-- Ilustração SVG dos 3 Fios (Com suporte total a telas estreitas) -->
+      <div class="bg-slate-950 rounded-2xl sm:rounded-3xl border border-slate-800 p-3 sm:p-6 shadow-2xl mb-8 sm:mb-10 overflow-x-auto">
+        <svg viewBox="0 0 800 280" class="w-full min-w-[500px] h-auto select-none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Bloco do Sensor à Esquerda -->
+          <g transform="translate(40, 25)">
+            <rect x="0" y="0" width="180" height="230" rx="16" fill="#111827" stroke="#374151" stroke-width="1.5" />
+            <rect x="15" y="15" width="150" height="50" rx="10" fill="#0b1120" stroke="#1e293b" />
+            <text x="90" y="36" fill="#38bdf8" font-size="12" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">QUALQUER SENSOR</text>
+            <text x="90" y="53" fill="#94a3b8" font-size="9.5" text-anchor="middle">(Olhos, Ouvidos, RFID)</text>
+
+            <!-- 3 Pinos do Sensor (Centro Y em 90, 145, 200 no grupo local = 115, 170, 225 absoluto) -->
+            <!-- Pino G -->
+            <rect x="145" y="79" width="40" height="22" rx="4" fill="#18181b" stroke="#52525b" stroke-width="1.5" />
+            <text x="135" y="95" fill="#cbd5e1" font-size="11.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="end">G (-)</text>
+
+            <!-- Pino V -->
+            <rect x="145" y="134" width="40" height="22" rx="4" fill="#dc2626" stroke="#f87171" stroke-width="1.5" />
+            <text x="135" y="150" fill="#f87171" font-size="11.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="end">V (+)</text>
+
+            <!-- Pino S -->
+            <rect x="145" y="189" width="40" height="22" rx="4" fill="#ca8a04" stroke="#facc15" stroke-width="1.5" />
+            <text x="135" y="205" fill="#facc15" font-size="11.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="end">S (Sinal)</text>
+          </g>
+
+          <!-- OS 3 CABOS COLORIDOS E ETIQUETAS PERFEITAMENTE ALINHADAS -->
+          <!-- Fio Preto (G) - Y=115 -->
+          <g>
+            <rect x="235" y="80" width="330" height="22" rx="11" fill="#0f172a" stroke="#27272a" stroke-width="1" />
+            <text x="400" y="95" fill="#a1a1aa" font-size="10.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">FIO PRETO: O Retorno Seguro (Terra / GND)</text>
+            <path id="path-wire-black" d="M 225 115 L 575 115" fill="none" stroke="#27272a" stroke-width="8" stroke-linecap="round" />
+            <path d="M 225 115 L 575 115" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-dasharray="8 8" />
+          </g>
+
+          <!-- Fio Vermelho (V) - Y=170 -->
+          <g>
+            <rect x="235" y="135" width="330" height="22" rx="11" fill="#0f172a" stroke="#7f1d1d" stroke-width="1" />
+            <text x="400" y="150" fill="#f87171" font-size="10.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">FIO VERMELHO: A Energia / Alimento (3.3V)</text>
+            <path id="path-wire-red" d="M 225 170 L 575 170" fill="none" stroke="#dc2626" stroke-width="8" stroke-linecap="round" />
+            <path class="wire-flow" d="M 225 170 L 575 170" fill="none" stroke="#fca5a5" stroke-width="2" stroke-linecap="round" />
+          </g>
+
+          <!-- Fio Amarelo (S) - Y=225 -->
+          <g>
+            <rect x="235" y="190" width="330" height="22" rx="11" fill="#0f172a" stroke="#713f12" stroke-width="1" />
+            <text x="400" y="205" fill="#facc15" font-size="10.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">FIO AMARELO: A Informação / Telefone (Sinal)</text>
+            <path id="path-wire-yellow" d="M 225 225 L 575 225" fill="none" stroke="#ca8a04" stroke-width="8" stroke-linecap="round" />
+            <path class="wire-flow" d="M 225 225 L 575 225" fill="none" stroke="#fef08a" stroke-width="2.5" stroke-linecap="round" />
+          </g>
+
+          <!-- Bloco da Placa de Expansão à Direita (ESP32) -->
+          <g transform="translate(580, 25)">
+            <rect x="0" y="0" width="180" height="230" rx="16" fill="#081426" stroke="#06b6d4" stroke-width="2" />
+            <rect x="15" y="15" width="150" height="50" rx="10" fill="#031525" stroke="#0e7490" />
+            <text x="90" y="36" fill="#38bdf8" font-size="12" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">PLACA DE CONEXÕES</text>
+            <text x="90" y="53" fill="#67e8f9" font-size="9.5" text-anchor="middle">Régua do ESP32</text>
+
+            <!-- 3 Conectores Fêmea/Soquetes da Placa (Alinhados perfeitamente com os fios) -->
+            <!-- Conector G -->
+            <rect x="-5" y="79" width="40" height="22" rx="4" fill="#18181b" stroke="#71717a" stroke-width="1.5" />
+            <text x="44" y="95" fill="#cbd5e1" font-size="11.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="start">G (Pino Preto)</text>
+
+            <!-- Conector V -->
+            <rect x="-5" y="134" width="40" height="22" rx="4" fill="#dc2626" stroke="#f87171" stroke-width="1.5" />
+            <text x="44" y="150" fill="#f87171" font-size="11.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="start">V (Pino Vermelho)</text>
+
+            <!-- Conector S -->
+            <rect x="-5" y="189" width="40" height="22" rx="4" fill="#ca8a04" stroke="#facc15" stroke-width="1.5" />
+            <text x="44" y="205" fill="#facc15" font-size="11.5" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="start">S (Pino Amarelo - IO)</text>
+          </g>
+        </svg>
+
+        <!-- Botão de Disparo do Pulso -->
+        <div class="mt-3 sm:mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 sm:pt-4 border-t border-slate-800 text-xs text-slate-400">
+          <p class="text-center sm:text-left flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-cyan-400 flex-shrink-0"></span>
+            <span>Quase todos os módulos do kit usam exatamente este mesmo trio de fios.</span>
+          </p>
+          <button onclick="pulsarSinalGVS()" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition">
+            <svg class="w-3.5 h-3.5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>Disparar Pulso de Informação</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3 Cartões Didáticos -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <!-- Fio Preto -->
+        <div class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-950 border border-slate-800">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-zinc-800 flex items-center justify-center text-white font-bold text-lg sm:text-xl mb-3 sm:mb-4 border border-zinc-700">
+            G
+          </div>
+          <h3 class="text-white font-bold text-base sm:text-lg">Pino Preto: GND (Terra)</h3>
+          <span class="text-xs text-zinc-400 block font-medium mt-1">O Retorno Seguro</span>
+          <p class="text-slate-300 text-xs sm:text-sm mt-2.5 leading-relaxed">
+            Assim como a água precisa escorrer pelo ralo depois que sai da torneira, a eletricidade precisa voltar para a fonte fechando o circuito com segurança.
+          </p>
+        </div>
+
+        <!-- Fio Vermelho -->
+        <div class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-950 border border-slate-800">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-rose-950 flex items-center justify-center text-rose-400 font-bold text-lg sm:text-xl mb-3 sm:mb-4 border border-rose-800">
+            V
+          </div>
+          <h3 class="text-white font-bold text-base sm:text-lg">Pino Vermelho: VCC (3.3V)</h3>
+          <span class="text-xs text-rose-400 block font-medium mt-1">O Alimento do Sensor</span>
+          <p class="text-slate-300 text-xs sm:text-sm mt-2.5 leading-relaxed">
+            A energia positiva que dá vida ao módulo. O microcontrolador entrega 3.3 Volts, uma voltagem suave que evita aquecimento.
+          </p>
+        </div>
+
+        <!-- Fio Amarelo -->
+        <div class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-950 border border-slate-800">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-950 flex items-center justify-center text-amber-400 font-bold text-lg sm:text-xl mb-3 sm:mb-4 border border-amber-800">
+            S
+          </div>
+          <h3 class="text-white font-bold text-base sm:text-lg">Pino Amarelo: Sinal (S)</h3>
+          <span class="text-xs text-amber-400 block font-medium mt-1">O Telefone / A Informação</span>
+          <p class="text-slate-300 text-xs sm:text-sm mt-2.5 leading-relaxed">
+            É por onde o sensor conversa com o cérebro! Quando algo acontece, ele avisa pelo fio amarelo para liberar ou acionar a porta.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SEÇÃO 3: LABORATÓRIO DOS 5 SENTIDOS -->
+  <section id="sentidos" class="sec-padding py-10 sm:py-16 bg-slate-900/60 border-t border-slate-800">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-6 sm:mb-10">
+        <span class="text-amber-400 font-semibold text-xs tracking-wider uppercase bg-amber-950/80 px-3 py-1 rounded-full border border-amber-800/50">Experiência Interativa 2</span>
+        <h2 class="text-xl sm:text-3xl md:text-4xl font-display font-extrabold text-white mt-2.5 sm:mt-3">O Laboratório dos Sentidos</h2>
+        <p class="text-slate-300 text-xs sm:text-sm md:text-base mt-1.5 max-w-xl mx-auto">
+          Arraste e selecione um dos sentidos para experimentar como os sensores reagem:
+        </p>
+      </div>
+
+      <!-- Abas de Navegação dos Sentidos com Rolagem Suave no Celular (Sem emoticons) -->
+      <div class="flex overflow-x-auto no-scrollbar gap-2 mb-6 sm:mb-8 pb-1 sm:justify-center">
+        <button onclick="selecionarSentido('visao')" id="tab-visao" class="sense-tab px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm bg-cyan-600 text-slate-950 flex items-center gap-2 whitespace-nowrap transition flex-shrink-0 shadow-lg">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          <span>Visão &amp; Luz</span>
+        </button>
+        <button onclick="selecionarSentido('audicao')" id="tab-audicao" class="sense-tab px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm bg-slate-950 text-slate-300 hover:text-white border border-slate-800 flex items-center gap-2 whitespace-nowrap transition flex-shrink-0">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+          <span>Audição &amp; Som</span>
+        </button>
+        <button onclick="selecionarSentido('tato')" id="tab-tato" class="sense-tab px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm bg-slate-950 text-slate-300 hover:text-white border border-slate-800 flex items-center gap-2 whitespace-nowrap transition flex-shrink-0">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+          </svg>
+          <span>Tato &amp; Batida</span>
+        </button>
+        <button onclick="selecionarSentido('magnetico')" id="tab-magnetico" class="sense-tab px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm bg-slate-950 text-slate-300 hover:text-white border border-slate-800 flex items-center gap-2 whitespace-nowrap transition flex-shrink-0">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          <span>Ímãs &amp; Presença</span>
+        </button>
+        <button onclick="selecionarSentido('fogo')" id="tab-fogo" class="sense-tab px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm bg-slate-950 text-slate-300 hover:text-white border border-slate-800 flex items-center gap-2 whitespace-nowrap transition flex-shrink-0">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+          </svg>
+          <span>Clima &amp; Fogo</span>
+        </button>
+      </div>
+
+      <!-- ABA 1: VISÃO & LUZ -->
+      <div id="painel-visao" class="sense-panel grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center bg-slate-950 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-800 shadow-2xl">
+        <div class="lg:col-span-7">
+          <svg viewBox="0 0 500 280" class="w-full h-auto rounded-xl sm:rounded-2xl bg-slate-900 border border-slate-800" xmlns="http://www.w3.org/2000/svg">
+            <rect id="sky-bg" x="0" y="0" width="500" height="280" fill="#0369a1" style="transition: fill 0.5s;" />
+            <g id="celestial-body" transform="translate(100, 70)" style="transition: transform 0.5s;">
+              <circle id="sun-circle" cx="0" cy="0" r="30" fill="#fde047" filter="drop-shadow(0 0 16px #facc15)" />
+            </g>
+            <rect x="0" y="220" width="500" height="60" fill="#0f172a" />
+            <rect x="330" y="90" width="10" height="130" fill="#475569" rx="2" />
+            <path d="M 335 90 C 335 60, 380 60, 390 80" fill="none" stroke="#475569" stroke-width="8" stroke-linecap="round" />
+            <path d="M 378 80 L 402 80 L 396 90 L 384 90 Z" fill="#334155" />
+            <polygon id="street-light-beam" points="390,90 320,220 460,220" fill="#fef08a" opacity="0" style="transition: opacity 0.5s;" />
+            <g transform="translate(325, 120)">
+              <rect x="0" y="0" width="20" height="20" rx="4" fill="#0284c7" />
+              <path d="M 4 10 Q 7 5, 10 10 T 16 10" fill="none" stroke="#f87171" stroke-width="1.8" />
+            </g>
+            <text id="ldr-status-text" x="250" y="255" fill="#ffffff" font-size="12" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">
+              Luz Solar Suficiente: Poste Desligado
+            </text>
+          </svg>
+
+          <!-- Controle Deslizante Otimizado para Dedos -->
+          <div class="mt-4 sm:mt-6 space-y-2">
+            <div class="flex justify-between text-xs font-bold text-slate-300">
+              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-400"></span>Noite Escura</span>
+              <span id="label-slider-luz">Sol Brilhante (85%)</span>
+              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span>Meio-Dia Solar</span>
+            </div>
+            <input id="slider-luz" type="range" min="0" max="100" value="85" oninput="ajustarLuzAmbiente(this.value)" class="w-full h-4 sm:h-3 bg-slate-800 rounded-lg cursor-pointer">
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 space-y-3 sm:space-y-4">
+          <div class="inline-block px-3 py-1 rounded-full bg-cyan-950 text-cyan-400 text-xs font-semibold border border-cyan-800">
+            Sensor de Luz (LDR)
+          </div>
+          <h3 class="text-lg sm:text-2xl font-bold text-white">Como a iluminação pública acende sem interruptor?</h3>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            O sensor possui uma trilha sensível à luz. Quando escurece, a corrente é bloqueada e o microcontrolador acende a lâmpada do poste na mesma hora!
+          </p>
+        </div>
+      </div>
+
+      <!-- ABA 2: AUDIÇÃO & SOM -->
+      <div id="painel-audicao" class="sense-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center bg-slate-950 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-800 shadow-2xl">
+        <div class="lg:col-span-7">
+          <svg viewBox="0 0 500 280" class="w-full h-auto rounded-xl sm:rounded-2xl bg-slate-900 border border-slate-800" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="500" height="280" fill="#090d16" />
+            <line x1="250" y1="0" x2="250" y2="70" stroke="#475569" stroke-width="3" />
+            <circle cx="250" cy="80" r="14" fill="#334155" />
+            <circle id="room-bulb" cx="250" cy="95" r="22" fill="#475569" style="transition: fill 0.3s;" />
+            <circle id="room-bulb-halo" cx="250" cy="110" r="100" fill="#fde047" opacity="0" style="transition: opacity 0.3s;" />
+
+            <g transform="translate(180, 180)">
+              <rect x="0" y="0" width="140" height="70" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5" />
+              <circle cx="35" cy="35" r="18" fill="#94a3b8" stroke="#cbd5e1" stroke-width="2" />
+              <rect x="75" y="20" width="25" height="25" rx="3" fill="#2563eb" />
+              <circle cx="87.5" cy="32.5" r="4" fill="#cbd5e1" />
+              <text x="70" y="60" fill="#94a3b8" font-size="9" font-family="'Space Grotesk', sans-serif">MICROFONE</text>
+            </g>
+
+            <g id="sound-waves" opacity="0" transform="translate(120, 140)">
+              <path d="M 0 0 C 15 -20, 15 20, 0 40" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" />
+              <path d="M 15 -10 C 35 -30, 35 30, 15 50" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" />
+            </g>
+
+            <text id="clap-caption" x="250" y="265" fill="#94a3b8" font-size="12" font-family="'Plus Jakarta Sans', sans-serif" font-weight="semibold" text-anchor="middle">
+              Toque no botão para ligar ou desligar a luz!
+            </text>
+          </svg>
+
+          <div class="mt-4 sm:mt-6 flex justify-center">
+            <button onclick="dispararPalma()" class="mobile-btn-touch w-full sm:w-auto px-8 py-3.5 rounded-xl sm:rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-3 transition">
+              <div class="w-8 h-8 rounded-lg bg-amber-950/40 flex items-center justify-center">
+                <svg class="w-5 h-5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </div>
+              <span>Bater Palma (Acionar Som)</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 space-y-3 sm:space-y-4">
+          <div class="inline-block px-3 py-1 rounded-full bg-amber-950 text-amber-400 text-xs font-semibold border border-amber-800">
+            Sensor de Som / Microfone
+          </div>
+          <h3 class="text-lg sm:text-2xl font-bold text-white">Transformando sons em ações práticas</h3>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            A cápsula metálica capta vibrações do ar. Um parafuso regulador permite calibrar a sensibilidade para comandos por palmas ou alarmes silenciosos.
+          </p>
+        </div>
+      </div>
+
+      <!-- ABA 3: TATO & BATIDA -->
+      <div id="painel-tato" class="sense-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center bg-slate-950 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-800 shadow-2xl">
+        <div class="lg:col-span-7">
+          <svg viewBox="0 0 500 280" class="w-full h-auto rounded-xl sm:rounded-2xl bg-slate-900 border border-slate-800" xmlns="http://www.w3.org/2000/svg">
+            <rect x="50" y="30" width="180" height="220" rx="6" fill="#78350f" stroke="#451a03" stroke-width="4" />
+            <rect x="70" y="50" width="60" height="70" rx="3" fill="#92400e" />
+            <rect x="150" y="50" width="60" height="70" rx="3" fill="#92400e" />
+            <rect x="70" y="140" width="60" height="90" rx="3" fill="#92400e" />
+            <rect x="150" y="140" width="60" height="90" rx="3" fill="#92400e" />
+            <circle cx="70" cy="140" r="6" fill="#f59e0b" />
+
+            <g transform="translate(120, 100)">
+              <rect x="0" y="0" width="50" height="35" rx="5" fill="#1e293b" stroke="#06b6d4" stroke-width="1.5" />
+              <rect x="10" y="7" width="30" height="20" rx="4" fill="#090d16" />
+              <circle id="knock-weight" cx="25" cy="17" r="4" fill="#cbd5e1" style="transition: transform 0.1s;" />
+            </g>
+
+            <g transform="translate(320, 70)">
+              <rect x="0" y="0" width="120" height="130" rx="12" fill="#1e293b" stroke="#334155" stroke-width="2" />
+              <circle id="bell-led" cx="60" cy="50" r="24" fill="#334155" />
+              <path d="M 52 56 L 68 56 C 68 56 67 44 60 44 C 53 44 52 56 52 56 Z M 58 58 A 2 2 0 0 0 62 58" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" />
+              <text id="bell-status-text" x="60" y="105" fill="#94a3b8" font-size="11" font-weight="bold" text-anchor="middle">Silêncio</text>
+            </g>
+
+            <g id="hand-knock" transform="translate(180, 100)" opacity="0">
+              <circle cx="20" cy="20" r="16" fill="#06b6d4" opacity="0.8" />
+              <path d="M 8 20 L 32 20 M 20 8 L 20 32" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+            </g>
+          </svg>
+
+          <div class="mt-4 sm:mt-6 flex justify-center">
+            <button onclick="dispararBatidaPorta()" class="mobile-btn-touch w-full sm:w-auto px-8 py-3.5 rounded-xl sm:rounded-2xl bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-bold text-sm shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-3 transition">
+              <div class="w-8 h-8 rounded-lg bg-cyan-950/40 flex items-center justify-center">
+                <svg class="w-5 h-5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+                </svg>
+              </div>
+              <span>Bater na Porta (TOC! TOC!)</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 space-y-3 sm:space-y-4">
+          <div class="inline-block px-3 py-1 rounded-full bg-cyan-950 text-cyan-400 text-xs font-semibold border border-cyan-800">
+            Sensor de Batida e Vibração
+          </div>
+          <h3 class="text-lg sm:text-2xl font-bold text-white">Como sentir um toque físico na madeira?</h3>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Uma mola microscópica encosta no contato ao receber impacto mecânico. Perfeito para campainhas automáticas e alarmes.
+          </p>
+        </div>
+      </div>
+
+      <!-- ABA 4: MAGNETISMO & JANELA -->
+      <div id="painel-magnetico" class="sense-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center bg-slate-950 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-800 shadow-2xl">
+        <div class="lg:col-span-7">
+          <svg viewBox="0 0 500 280" class="w-full h-auto rounded-xl sm:rounded-2xl bg-slate-900 border border-slate-800" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="500" height="280" fill="#090d16" />
+            <rect x="100" y="40" width="300" height="190" rx="10" fill="#1e293b" stroke="#334155" stroke-width="3" />
+            
+            <g transform="translate(230, 48)">
+              <rect x="0" y="0" width="50" height="16" rx="8" fill="#e0f2fe" opacity="0.3" stroke="#38bdf8" stroke-width="1.5" />
+              <line x1="6" y1="8" x2="22" y2="8" stroke="#f59e0b" stroke-width="2" />
+              <line id="reed-blade-right" x1="44" y1="8" x2="26" y2="8" stroke="#f59e0b" stroke-width="2" style="transition: transform 0.2s; transform-origin: 44px 8px;" />
+            </g>
+
+            <g id="window-pane" transform="translate(0, 0)" style="transition: transform 0.4s ease-out;">
+              <rect x="110" y="68" width="135" height="150" rx="6" fill="#0284c7" opacity="0.4" stroke="#38bdf8" stroke-width="2" />
+              <line x1="177" y1="68" x2="177" y2="218" stroke="#38bdf8" stroke-width="2" />
+              <g transform="translate(225, 48)">
+                <rect x="0" y="0" width="20" height="16" rx="3" fill="#ef4444" stroke="#ffffff" stroke-width="1" />
+                <text x="10" y="12" fill="#ffffff" font-size="8" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">ÍMÃ</text>
+              </g>
+            </g>
+
+            <g transform="translate(420, 20)">
+              <circle id="alarm-siren" cx="20" cy="20" r="18" fill="#334155" />
+              <path d="M 14 26 L 26 26 L 24 16 L 16 16 Z M 18 14 A 2 2 0 0 1 22 14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+            </g>
+
+            <text id="reed-status-text" x="250" y="260" fill="#10b981" font-size="13" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">
+              Janela Fechada: Ímã Encostado (Seguro)
+            </text>
+          </svg>
+
+          <div class="mt-4 sm:mt-6 flex justify-center">
+            <button onclick="alternarJanela()" id="btn-janela" class="mobile-btn-touch w-full sm:w-auto px-8 py-3.5 rounded-xl sm:rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-3 transition">
+              <div id="btn-janela-icon-container" class="w-8 h-8 rounded-lg bg-emerald-950/40 flex items-center justify-center">
+                <svg class="w-5 h-5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </div>
+              <span id="btn-janela-text">Abrir Janela (Afastar Ímã)</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 space-y-3 sm:space-y-4">
+          <div class="inline-block px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 text-xs font-semibold border border-emerald-800">
+            Sensor Magnético (Reed Switch)
+          </div>
+          <h3 class="text-lg sm:text-2xl font-bold text-white">Detecção sem contato mecânico</h3>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Duas lâminas de metal atraem-se pela presença do campo magnético de um ímã. É o princípio usado em portas automáticas e cofres.
+          </p>
+        </div>
+      </div>
+
+      <!-- ABA 5: CLIMA & FOGO -->
+      <div id="painel-fogo" class="sense-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center bg-slate-950 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-800 shadow-2xl">
+        <div class="lg:col-span-7">
+          <svg viewBox="0 0 500 280" class="w-full h-auto rounded-xl sm:rounded-2xl bg-slate-900 border border-slate-800" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="500" height="280" fill="#090d16" />
+            <g transform="translate(80, 110)">
+              <rect x="0" y="0" width="90" height="50" rx="8" fill="#1e293b" stroke="#ef4444" stroke-width="1.5" />
+              <circle cx="15" cy="25" r="10" fill="#020617" stroke="#ef4444" stroke-width="2" />
+              <text x="50" y="30" fill="#fca5a5" font-size="9" font-family="'Space Grotesk', sans-serif" font-weight="bold">SENSOR CHAMA</text>
+            </g>
+
+            <g transform="translate(360, 100)">
+              <rect x="15" y="60" width="30" height="80" rx="4" fill="#f1f5f9" />
+              <line x1="30" y1="60" x2="30" y2="50" stroke="#000000" stroke-width="2" />
+              <g id="flame-element" opacity="0">
+                <path d="M 30 15 C 15 35, 20 48, 30 50 C 40 48, 45 35, 30 15 Z" fill="#f97316" filter="drop-shadow(0 0 10px #ea580c)" />
+                <path d="M 30 25 C 22 35, 25 45, 30 47 C 35 45, 38 35, 30 25 Z" fill="#fde047" />
+                <line x1="20" y1="35" x2="-260" y2="35" stroke="#ef4444" stroke-width="2" stroke-dasharray="6 6" class="wire-flow" />
+              </g>
+            </g>
+
+            <g transform="translate(230, 20)">
+              <rect x="0" y="0" width="60" height="50" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1.5" />
+              <circle id="fire-alarm-led" cx="30" cy="25" r="14" fill="#334155" />
+              <path d="M 30 18 C 26 24 24 27 26 31 C 28 33 32 33 34 31 C 36 28 34 22 30 18 Z" fill="#ffffff" />
+            </g>
+
+            <text id="flame-status-text" x="250" y="250" fill="#94a3b8" font-size="12" font-family="'Space Grotesk', sans-serif" font-weight="bold" text-anchor="middle">
+              Ambiente Seguro: Nenhuma Chama Detectada
+            </text>
+          </svg>
+
+          <div class="mt-4 sm:mt-6 flex justify-center">
+            <button onclick="alternarChama()" id="btn-fogo" class="mobile-btn-touch w-full sm:w-auto px-8 py-3.5 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-bold text-sm shadow-lg shadow-rose-600/30 flex items-center justify-center gap-3 transition">
+              <div id="btn-fogo-icon-container" class="w-8 h-8 rounded-lg bg-rose-950 flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                </svg>
+              </div>
+              <span id="btn-fogo-text">Acender Chama / Isqueiro</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 space-y-3 sm:space-y-4">
+          <div class="inline-block px-3 py-1 rounded-full bg-rose-950 text-rose-400 text-xs font-semibold border border-rose-800">
+            Sensor de Chama / Fogo
+          </div>
+          <h3 class="text-lg sm:text-2xl font-bold text-white">Detectando fogo real sem falsos alarmes</h3>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Possui lente com filtro ótico que ignora iluminação comum de lâmpadas e capta exclusivamente o infravermelho de chamas em combustão.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SEÇÃO 4: DICAS DE OURO / PERGUNTAS FREQUENTES -->
+  <section id="curiosidades" class="sec-padding py-10 sm:py-16">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-8 sm:mb-12">
+        <span class="text-purple-400 font-semibold text-xs tracking-wider uppercase bg-purple-950/80 px-3 py-1 rounded-full border border-purple-800/50">Dúvidas Frequentes</span>
+        <h2 class="text-xl sm:text-3xl md:text-4xl font-display font-extrabold text-white mt-2.5 sm:mt-3">Dicas Importantes para o Dia a Dia</h2>
+        <p class="text-slate-300 text-xs sm:text-sm md:text-base mt-1.5 max-w-xl mx-auto">
+          Respostas simples para as dúvidas mais comuns sobre o funcionamento do equipamento.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <!-- Cartão 1 -->
+        <div class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-3 mb-2.5 sm:mb-3">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-cyan-950 border border-cyan-800 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h3 class="text-white font-bold text-base sm:text-lg">Por que 3.3V e não a tomada de 220V?</h3>
+          </div>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Pense na <strong>voltagem como a pressão da água em uma mangueira</strong>. Os 220V da tomada são como um canhão de hidrante de bombeiro: ótimo para ligar uma geladeira pesada, mas se você apontar esse jato para um chip microscópico, ele estoura na hora! Os <strong>3.3 Volts</strong> são como um bebedouro suave: a medida exata para alimentar o cérebro eletrônico com segurança.
+          </p>
+        </div>
+
+        <!-- Cartão 2 -->
+        <div class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-3 mb-2.5 sm:mb-3">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-950 border border-amber-800 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <h3 class="text-white font-bold text-base sm:text-lg">Como o chip fraco abre um portão pesado?</h3>
+          </div>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Ele usa o <strong>Módulo Relé</strong>! O relé funciona como um interruptor acionado pelo microcontrolador. Quando o comando de abertura é enviado, escuta-se um estalo seco: <em>"CLICK!"</em>. É o contato fechando com segurança para conduzir a força do portão!
+          </p>
+        </div>
+
+        <!-- Cartão 3 -->
+        <div class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-3 mb-2.5 sm:mb-3">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-950 border border-rose-800 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 class="text-white font-bold text-base sm:text-lg">Os Pinos Reservados: 35, 36 e 37</h3>
+          </div>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Neste modelo de placa com 16MB de memória Flash e 8MB de memória interna extra, esses três pinos são dedicados exclusivamente à comunicação interna da memória. Por segurança, eles ficam sempre livres de conexões externas.
+          </p>
+        </div>
+
+        <!-- Cartão 4 -->
+        <div class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-3 mb-2.5 sm:mb-3">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <h3 class="text-white font-bold text-base sm:text-lg">Por que o portão não para se a internet cair?</h3>
+          </div>
+          <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Muitos sistemas dependem exclusivamente de servidores externos. Aqui, o equipamento guarda a lista de alunos na sua memória física local. A validação ocorre em <strong>0 milissegundos</strong> na portaria, preservando a segurança mesmo sem sinal!
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RODAPÉ RESPONSIVO -->
+  <footer class="py-8 sm:py-12 bg-slate-950 border-t border-slate-900 text-center text-xs text-slate-400">
+    <div class="max-w-7xl mx-auto px-4 space-y-3">
+      <div class="flex justify-center items-center space-x-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+      </div>
+      <p class="text-slate-300 font-medium">
+        Guia Interativo de Controle de Acesso Escolar &amp; Sensores ESP32-S3
+      </p>
+      <p class="text-slate-500 text-[11px]">
+        Otimizado para smartphones, tablets e computadores em modo Retrato e Paisagem.
+      </p>
+    </div>
+  </footer>
+
+  <!-- SCRIPT & LÓGICA INTERATIVA -->
+  <script>
+    // Sintetizador Web Audio API puro (sem downloads pesados de áudio)
+    let audioCtx = null;
+    let audioHabilitado = true;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function toggleAudio() {
+      audioHabilitado = !audioHabilitado;
+      const soundIconContainer = document.getElementById('sound-icon-container');
+      const soundText = document.getElementById('sound-text');
+      if (audioHabilitado) {
+        soundIconContainer.innerHTML = `<svg class="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>`;
+        soundText.textContent = 'Som: Ligado';
+        tocarSomSucesso();
+      } else {
+        soundIconContainer.innerHTML = `<svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>`;
+        soundText.textContent = 'Som: Mudo';
+      }
+    }
+
+    function tocarSomSucesso() {
+      if (!audioHabilitado) return;
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(659.25, now);
+        gain1.gain.setValueAtTime(0.15, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.35);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(880.00, now + 0.12);
+        gain2.gain.setValueAtTime(0.2, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.6);
+      } catch (e) {}
+    }
+
+    function tocarSomNegado() {
+      if (!audioHabilitado) return;
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.setValueAtTime(110, now + 0.15);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.45);
+      } catch (e) {}
+    }
+
+    function tocarCliqueRele() {
+      if (!audioHabilitado) return;
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, now);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      } catch (e) {}
+    }
+
+    function tocarSomPalma() {
+      if (!audioHabilitado) return;
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const bufferSize = ctx.sampleRate * 0.1;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.02));
+        }
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1200;
+        const gain = ctx.createGain();
+        gain.gain.value = 0.35;
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        noise.start(now);
+      } catch (e) {}
+    }
+
+    function tocarSomBatida() {
+      if (!audioHabilitado) return;
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.08);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } catch (e) {}
+    }
+
+    function tocarCampainha() {
+      if (!audioHabilitado) return;
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.frequency.setValueAtTime(987.77, now);
+        gain1.gain.setValueAtTime(0.2, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.6);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.frequency.setValueAtTime(783.99, now + 0.3);
+        gain2.gain.setValueAtTime(0.22, now + 0.3);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.3);
+        osc2.stop(now + 1.1);
+      } catch (e) {}
+    }
+
+    function tocarSirene() {
+      if (!audioHabilitado) return;
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.linearRampToValueAtTime(1100, now + 0.25);
+        osc.frequency.linearRampToValueAtTime(600, now + 0.5);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.6);
+      } catch (e) {}
+    }
+
+    // ================= SEÇÃO 1: SIMULADOR DA CATRACA NFC =================
+    let internetAtiva = true;
+    let emAnimacao = false;
+
+    const elStudentCard = document.getElementById('student-card');
+    const elEspLed = document.getElementById('esp-led');
+    const elTurnstileArms = document.getElementById('turnstile-arms');
+    const elDisplayScreen = document.getElementById('display-screen');
+    const elGateLight = document.getElementById('gate-light');
+    const elSvgCaption = document.getElementById('svg-caption');
+    const elChipThought = document.getElementById('chip-thought');
+    const elBadgeWifi = document.getElementById('badge-wifi');
+    const elWifiDot = document.getElementById('wifi-dot');
+    const elWifiLabel = document.getElementById('wifi-label');
+
+    function resetarCatraca() {
+      elStudentCard.style.transform = 'translate(15px, 60px)';
+      elTurnstileArms.classList.remove('turnstile-open');
+      elTurnstileArms.style.transform = 'rotate(0deg)';
+      elEspLed.className.baseVal = 'led-breathing';
+      elEspLed.setAttribute('fill', '#06b6d4');
+      elGateLight.setAttribute('fill', '#334155');
+      elDisplayScreen.textContent = 'AGUARDANDO';
+      elDisplayScreen.setAttribute('fill', '#38bdf8');
+      elSvgCaption.textContent = 'Toque em um dos botões abaixo ou toque no cartão para testar.';
+      emAnimacao = false;
+    }
+
+    function simularAcessoValido() {
+      if (emAnimacao) return;
+      emAnimacao = true;
+
+      elStudentCard.style.transform = 'translate(95px, 140px)';
+      elSvgCaption.textContent = 'Cartão de Lucas Silva aproximado do leitor...';
+
+      setTimeout(() => {
+        tocarSomSucesso();
+        tocarCliqueRele();
+
+        elEspLed.className.baseVal = '';
+        elEspLed.setAttribute('fill', '#10b981');
+        elGateLight.setAttribute('fill', '#10b981');
+
+        elDisplayScreen.textContent = 'BEM-VINDO!';
+        elDisplayScreen.setAttribute('fill', '#10b981');
+        elTurnstileArms.style.transform = 'rotate(120deg)';
+
+        if (internetAtiva) {
+          elSvgCaption.textContent = 'Acesso Liberado! Aluno ativo no sistema escolar.';
+          elChipThought.textContent = 'O ESP32 verificou a tag no Núcleo 0 em menos de 1 milissegundo, bateu o relé e acionou a luz Verde!';
+        } else {
+          elSvgCaption.textContent = 'Acesso Liberado (100% OFFLINE)! Aluno validado na memória interna.';
+          elChipThought.textContent = 'A internet está fora do ar, mas o chip consultou seu banco local na memória Flash e liberou a catraca no mesmo milissegundo!';
+        }
+
+        setTimeout(() => {
+          resetarCatraca();
+        }, 2400);
+
+      }, 350);
+    }
+
+    function simularAcessoInvalido() {
+      if (emAnimacao) return;
+      emAnimacao = true;
+
+      elStudentCard.style.transform = 'translate(95px, 140px)';
+      elSvgCaption.textContent = 'Cartão desconhecido ou bloqueado aproximado do leitor...';
+
+      setTimeout(() => {
+        tocarSomNegado();
+
+        elEspLed.className.baseVal = '';
+        elEspLed.setAttribute('fill', '#f43f5e');
+        elGateLight.setAttribute('fill', '#f43f5e');
+
+        elDisplayScreen.textContent = 'BLOQUEADO';
+        elDisplayScreen.setAttribute('fill', '#f43f5e');
+
+        elSvgCaption.textContent = 'Acesso Negado! Cartão não autorizado pela secretaria.';
+        elChipThought.textContent = 'O chip procurou o código na lista interna de cartões autorizados, não encontrou e manteve o portão travado!';
+
+        setTimeout(() => {
+          resetarCatraca();
+        }, 2200);
+
+      }, 350);
+    }
+
+    function alternarInternet() {
+      internetAtiva = !internetAtiva;
+      const iconContainer = document.getElementById('btn-net-icon-container');
+      const btnTitle = document.getElementById('btn-net-title');
+
+      if (!internetAtiva) {
+        iconContainer.className = 'w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition';
+        iconContainer.innerHTML = `<svg class="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-12.728-12.728m0 12.728a9 9 0 010-12.728" /></svg>`;
+        btnTitle.textContent = 'Restaurar Internet (Online)';
+        elBadgeWifi.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5 transition-colors';
+        elWifiDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+        elWifiLabel.textContent = 'Sem Wi-Fi (Offline)';
+        elChipThought.textContent = 'A internet caiu! Mas teste tocar em "Aproximar Cartão do Aluno": você verá que o sistema NUNCA para!';
+      } else {
+        iconContainer.className = 'w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition';
+        iconContainer.innerHTML = `<svg class="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" /></svg>`;
+        btnTitle.textContent = 'Derrubar a Internet (Offline)';
+        elBadgeWifi.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1.5 transition-colors';
+        elWifiDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        elWifiLabel.textContent = 'Wi-Fi Conectado';
+        elChipThought.textContent = 'Wi-Fi restabelecido! O ESP32 sincroniza os relatórios com a nuvem sem travar a leitura física.';
+      }
+    }
+
+    function simularErroHardware() {
+      if (emAnimacao) return;
+      emAnimacao = true;
+
+      tocarSomNegado();
+      elDisplayScreen.textContent = 'ERRO I2C';
+      elDisplayScreen.setAttribute('fill', '#f43f5e');
+
+      let pisca = 0;
+      const interval = setInterval(() => {
+        elEspLed.setAttribute('fill', pisca % 2 === 0 ? '#ef4444' : '#1e293b');
+        pisca++;
+        if (pisca > 8) {
+          clearInterval(interval);
+          resetarCatraca();
+        }
+      }, 150);
+
+      elSvgCaption.textContent = 'Alerta: O leitor PN532 não respondeu nos pinos 8 e 9!';
+      elChipThought.textContent = 'Diagnóstico imediato: quando a luz pisca vermelho rápido, o microcontrolador avisa que algum fio do leitor se soltou!';
+    }
+
+    function pulsarSinalGVS() {
+      tocarCliqueRele();
+      const pathSinal = document.getElementById('path-wire-yellow');
+      pathSinal.setAttribute('stroke', '#ffffff');
+      pathSinal.setAttribute('stroke-width', '11');
+      setTimeout(() => {
+        pathSinal.setAttribute('stroke', '#ca8a04');
+        pathSinal.setAttribute('stroke-width', '8');
+      }, 350);
+    }
+
+    function selecionarSentido(sentido) {
+      document.querySelectorAll('.sense-panel').forEach(p => p.classList.add('hidden'));
+      document.querySelectorAll('.sense-tab').forEach(t => {
+        t.className = 'sense-tab px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm bg-slate-950 text-slate-300 hover:text-white border border-slate-800 flex items-center gap-1.5 whitespace-nowrap transition flex-shrink-0';
+      });
+
+      const painel = document.getElementById('painel-' + sentido);
+      const tab = document.getElementById('tab-' + sentido);
+
+      if (painel && tab) {
+        painel.classList.remove('hidden');
+        tab.className = 'sense-tab px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm bg-cyan-600 text-slate-950 flex items-center gap-1.5 whitespace-nowrap transition flex-shrink-0 shadow-lg';
+      }
+    }
+
+    function ajustarLuzAmbiente(valor) {
+      const v = parseInt(valor);
+      const sky = document.getElementById('sky-bg');
+      const sunCircle = document.getElementById('sun-circle');
+      const lightBeam = document.getElementById('street-light-beam');
+      const statusText = document.getElementById('ldr-status-text');
+      const labelSlider = document.getElementById('label-slider-luz');
+
+      labelSlider.textContent = `Claridade (${v}%)`;
+
+      if (v > 45) {
+        sky.setAttribute('fill', '#0284c7');
+        sunCircle.setAttribute('fill', '#fde047');
+        lightBeam.style.opacity = '0';
+        statusText.textContent = 'Luz Solar Suficiente: Poste Desligado';
+        statusText.setAttribute('fill', '#ffffff');
+      } else {
+        sky.setAttribute('fill', '#090d16');
+        sunCircle.setAttribute('fill', '#cbd5e1');
+        lightBeam.style.opacity = '0.7';
+        statusText.textContent = 'Escureceu! Sensor LDR acendeu o poste automaticamente!';
+        statusText.setAttribute('fill', '#fde047');
+      }
+    }
+
+    let lampadaAcesa = false;
+    function dispararPalma() {
+      tocarSomPalma();
+      tocarCliqueRele();
+
+      const soundWaves = document.getElementById('sound-waves');
+      const bulb = document.getElementById('room-bulb');
+      const halo = document.getElementById('room-bulb-halo');
+      const caption = document.getElementById('clap-caption');
+
+      soundWaves.setAttribute('opacity', '1');
+      setTimeout(() => soundWaves.setAttribute('opacity', '0'), 350);
+
+      lampadaAcesa = !lampadaAcesa;
+
+      if (lampadaAcesa) {
+        bulb.setAttribute('fill', '#fde047');
+        bulb.style.filter = 'drop-shadow(0 0 20px #facc15)';
+        halo.style.opacity = '0.35';
+        caption.textContent = 'O microfone ouviu o "Clap!" e ligou a lâmpada!';
+      } else {
+        bulb.setAttribute('fill', '#475569');
+        bulb.style.filter = 'none';
+        halo.style.opacity = '0';
+        caption.textContent = 'O microfone ouviu outra palma e apagou a luz!';
+      }
+    }
+
+    function dispararBatidaPorta() {
+      tocarSomBatida();
+      setTimeout(tocarSomBatida, 120);
+
+      const hand = document.getElementById('hand-knock');
+      const bellLed = document.getElementById('bell-led');
+      const bellText = document.getElementById('bell-status-text');
+      const weight = document.getElementById('knock-weight');
+
+      hand.style.opacity = '1';
+      weight.style.transform = 'translateX(6px)';
+
+      setTimeout(() => {
+        hand.style.opacity = '0';
+        weight.style.transform = 'translateX(0px)';
+        tocarCampainha();
+        bellLed.setAttribute('fill', '#06b6d4');
+        bellText.textContent = 'TOC TOC!';
+        bellText.setAttribute('fill', '#38bdf8');
+
+        setTimeout(() => {
+          bellLed.setAttribute('fill', '#334155');
+          bellText.textContent = 'Silêncio';
+          bellText.setAttribute('fill', '#94a3b8');
+        }, 1400);
+      }, 250);
+    }
+
+    let janelaAberta = false;
+    function alternarJanela() {
+      janelaAberta = !janelaAberta;
+
+      const pane = document.getElementById('window-pane');
+      const blade = document.getElementById('reed-blade-right');
+      const siren = document.getElementById('alarm-siren');
+      const statusText = document.getElementById('reed-status-text');
+      const iconContainer = document.getElementById('btn-janela-icon-container');
+      const btnText = document.getElementById('btn-janela-text');
+
+      if (janelaAberta) {
+        pane.style.transform = 'translateX(70px)';
+        blade.style.transform = 'rotate(-25deg)';
+        siren.setAttribute('fill', '#ef4444');
+        siren.style.filter = 'drop-shadow(0 0 10px #ef4444)';
+        tocarSirene();
+
+        statusText.textContent = 'Alerta: Janela aberta! O ímã se afastou e disparou o alarme!';
+        statusText.setAttribute('fill', '#ef4444');
+        if (iconContainer) iconContainer.innerHTML = `<svg class="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
+        btnText.textContent = 'Fechar Janela (Aproximar Ímã)';
+      } else {
+        pane.style.transform = 'translateX(0px)';
+        blade.style.transform = 'rotate(0deg)';
+        siren.setAttribute('fill', '#334155');
+        siren.style.filter = 'none';
+
+        statusText.textContent = 'Janela Fechada: Ímã Encostado (Seguro)';
+        statusText.setAttribute('fill', '#10b981');
+        if (iconContainer) iconContainer.innerHTML = `<svg class="w-5 h-5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>`;
+        btnText.textContent = 'Abrir Janela (Afastar Ímã)';
+      }
+    }
+
+    let chamaAcesa = false;
+    function alternarChama() {
+      chamaAcesa = !chamaAcesa;
+
+      const flame = document.getElementById('flame-element');
+      const fireAlarm = document.getElementById('fire-alarm-led');
+      const statusText = document.getElementById('flame-status-text');
+      const iconContainer = document.getElementById('btn-fogo-icon-container');
+      const btnText = document.getElementById('btn-fogo-text');
+
+      if (chamaAcesa) {
+        flame.style.opacity = '1';
+        fireAlarm.setAttribute('fill', '#ef4444');
+        fireAlarm.style.filter = 'drop-shadow(0 0 12px #dc2626)';
+        tocarSirene();
+
+        statusText.textContent = 'Alerta: Sensor detectou fogo por radiação infravermelha!';
+        statusText.setAttribute('fill', '#ef4444');
+        if (iconContainer) iconContainer.innerHTML = `<svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+        btnText.textContent = 'Apagar Chama (Extintor)';
+      } else {
+        flame.style.opacity = '0';
+        fireAlarm.setAttribute('fill', '#334155');
+        fireAlarm.style.filter = 'none';
+
+        statusText.textContent = 'Ambiente Seguro: Nenhuma Chama Detectada';
+        statusText.setAttribute('fill', '#94a3b8');
+        if (iconContainer) iconContainer.innerHTML = `<svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>`;
+        btnText.textContent = 'Acender Chama / Isqueiro';
+      }
+    }
+  </script>
+</body>
+</html>

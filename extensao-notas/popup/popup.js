@@ -1132,6 +1132,12 @@
         mostrarMensagemFreq(`🚀 Lote iniciado para as datas: ${dadosFreqExtraidos.datas.join(", ")}!\nAcompanhe o progresso na página do SIGEduc.`, "sucesso", 8000);
         if (btnCancelarLoteCalendario) btnCancelarLoteCalendario.style.display = "block";
         Logger.sucesso(`Lote de calendário iniciado com sucesso.`);
+        try {
+          if (typeof chrome !== "undefined" && chrome.action && tabIdAtiva) {
+            chrome.action.setBadgeText({ text: `1/${dadosFreqExtraidos.datas.length}`, tabId: tabIdAtiva });
+            chrome.action.setBadgeBackgroundColor({ color: "#2563eb", tabId: tabIdAtiva });
+          }
+        } catch (e) {}
       } else {
         const err = res.dados ? res.dados.erro : (res.erro || "Falha");
         mostrarMensagemFreq(`Erro ao iniciar lote: ${err}`, "erro");
@@ -1148,6 +1154,11 @@
     await enviarMensagemSegura("CANCELAR_LOTE_CALENDARIO");
     if (btnCancelarLoteCalendario) btnCancelarLoteCalendario.style.display = "none";
     if (btnIniciarLoteCalendario) btnIniciarLoteCalendario.disabled = false;
+    try {
+      if (typeof chrome !== "undefined" && chrome.action && tabIdAtiva) {
+        chrome.action.setBadgeText({ text: "", tabId: tabIdAtiva });
+      }
+    } catch (e) {}
     mostrarMensagemFreq("Lote cancelado com sucesso.", "aviso");
   }
 

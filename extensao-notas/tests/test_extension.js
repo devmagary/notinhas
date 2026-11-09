@@ -1326,7 +1326,57 @@ async function executarTodosOsTestes() {
   assert.strictEqual(resCliqueNovembro, true, "Deve localizar e clicar no dia 18 de Novembro (mês 11)");
   assert.strictEqual(diaNovembro18Clicado, true, "Link do dia 18 de Novembro deve ter sido clicado");
 
-  // 5.7 Teste de Sanitização e Interceptação de Diálogos (window.confirm)
+  // 5.7 Teste Real RichFaces: Painel com cabeçalho externo (.rich-panel-header) e tabela aninhada (.rich-panel-body)
+  envFreq.document.body.children = [];
+  const painelFev = envFreq.document.createElement("div");
+  painelFev.className = "rich-panel";
+  const headerFev = envFreq.document.createElement("div");
+  headerFev.className = "rich-panel-header";
+  headerFev.innerText = "Fevereiro";
+  painelFev.appendChild(headerFev);
+  const bodyFev = envFreq.document.createElement("div");
+  bodyFev.className = "rich-panel-body";
+  const tabFevAninhada = montarTabelaCalendario(envFreq.document, "", [5, 12, 19, 26]); // sem nome do mês na tabela
+  bodyFev.appendChild(tabFevAninhada);
+  painelFev.appendChild(bodyFev);
+  envFreq.document.body.appendChild(painelFev);
+
+  const painelAgo = envFreq.document.createElement("div");
+  painelAgo.className = "rich-panel";
+  const headerAgo = envFreq.document.createElement("div");
+  headerAgo.className = "rich-panel-header";
+  headerAgo.innerText = "Agosto";
+  painelAgo.appendChild(headerAgo);
+  const bodyAgo = envFreq.document.createElement("div");
+  bodyAgo.className = "rich-panel-body";
+  const tabAgoAninhada = montarTabelaCalendario(envFreq.document, "", [5, 12, 19, 26]); // sem nome do mês na tabela
+  bodyAgo.appendChild(tabAgoAninhada);
+  painelAgo.appendChild(bodyAgo);
+  envFreq.document.body.appendChild(painelAgo);
+
+  let fev12Clicado = false;
+  let ago12Clicado = false;
+  tabFevAninhada.querySelector('a[href="#dia_12"]').addEventListener("click", () => { fev12Clicado = true; });
+  tabAgoAninhada.querySelector('a[href="#dia_12"]').addEventListener("click", () => { ago12Clicado = true; });
+
+  const resCliqueAgo12 = content.encontrarEClicarDiaNoCalendario(12, 8);
+  assert.strictEqual(resCliqueAgo12, true, "Deve encontrar dia 12 no painel isolado de Agosto");
+  assert.strictEqual(ago12Clicado, true, "Link do dia 12 de Agosto no painel deve ter sido clicado");
+  assert.strictEqual(fev12Clicado, false, "Dia 12 de Fevereiro NÃO pode ser clicado acidentalmente");
+
+  // 5.8 Teste de Validação Estrita de Carregamento de Data (Prevenção de sobrescrita de data anterior)
+  const tabFreqAntiga = montarTabelaFrequencia(envFreq.document, alunosFrequenciaTeste, { qtdPeriodos: 1 });
+  const divTituloAntigo = envFreq.document.createElement("div");
+  divTituloAntigo.className = "rich-panel-header";
+  divTituloAntigo.innerText = "LISTA DE FREQUÊNCIA 05/08/2026";
+  envFreq.document.body.insertBefore(divTituloAntigo, tabFreqAntiga);
+  assert.strictEqual(content.extrairDataDaTabelaFrequencia(), "05/08", "Deve extrair 05/08 da tabela atual");
+
+  // Quando a tabela ainda está em 05/08 e esperamos 12/08, a função DEVE retornar false após o timeout!
+  const resEsperaDataDivergente = await content.aguardarTabelaFrequenciaCarregar(300, "12/08");
+  assert.strictEqual(resEsperaDataDivergente, false, "NÃO deve retornar true se a data na tela (05/08) divergir da esperada (12/08)");
+
+  // 5.9 Teste de Sanitização e Interceptação de Diálogos (window.confirm)
   const btnComConfirm = envFreq.document.createElement("button");
   btnComConfirm.setAttribute("onclick", "if (!confirm('Deseja realmente gravar as frequências para o dia selecionado?')) return false; alert('Gravado');");
   content.sanitizarElementoConfirm(btnComConfirm);
@@ -1334,6 +1384,8 @@ async function executarTodosOsTestes() {
   assert.ok(btnComConfirm.getAttribute("onclick").includes("if (!true) return false;"), "confirm deve ser substituído por true");
 
   console.log("  ✓ Detecção e navegação no Calendário Mensal (Agosto, Setembro, Novembro e todos os 12 meses) testadas com sucesso!");
+  console.log("  ✓ Isolamento hierárquico de meses em painéis RichFaces e prevenção de colisão testados com sucesso!");
+  console.log("  ✓ Validação estrita de data (prevenção de loop/regravação da data anterior) testada com sucesso!");
   console.log("  ✓ Sanitização e auto-aceite de diálogos de confirmação (confirm) testados com sucesso!");
 
   console.log("\n=======================================================");

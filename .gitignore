@@ -47,7 +47,10 @@ sigeduc-auto/
 
 # Projetos e pastas locais não relacionados ao SIGEduc
 .agents/
+.tmp/
 escola-nfc-web/
+escola-nfc-web-offline/
+feira-exposicao/
 esp32-nfc-acesso/
 esp32s3-nfc-acesso/
 teste-compila-s3/
